@@ -1,0 +1,17 @@
+{
+  "name": "Festa de 1 Aninho",
+  "short_name": "Festa 1 Aninho",
+  "description": "Organizador da festa: convidados, checklist, gastos, calculadora e resumo em gráficos.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF4F3",
+  "theme_color": "#DB4C74",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

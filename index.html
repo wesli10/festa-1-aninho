@@ -1,0 +1,1045 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Organizador da festa de 1 aninho: convidados, checklist, gastos, calculadora de quantidades, anotações e resumo em gráficos.">
+<meta name="theme-color" content="#DB4C74" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191221" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Festa 1 Aninho">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<script>
+  // aplica o tema salvo antes de renderizar (evita piscar)
+  try { var t=localStorage.getItem("festa1ano.theme"); if(t) document.documentElement.setAttribute("data-theme",t); } catch(e){}
+</script>
+<title>Festa de 1 Aninho — Organizador</title>
+<style>
+  /* ===== Tokens: "Confete & Luz de Vela" ===== */
+  :root {
+    color-scheme: light;
+    --bg: #FBF4F3;
+    --surface: #FFFFFF;
+    --surface-2: #FCEDEF;
+    --surface-3: #FFF7EE;
+    --ink: #34243A;
+    --ink-2: #71607A;
+    --ink-3: #9A8BA2;
+    --accent: #DB4C74;
+    --accent-soft: #FBE4EB;
+    --accent-2: #E8933B;
+    --accent-3: #2FA69B;
+    --line: #F0DFE2;
+    --line-2: #E7D3D7;
+    --shadow: 0 1px 2px rgba(52,36,58,.05), 0 8px 24px rgba(52,36,58,.06);
+    --shadow-lg: 0 12px 40px rgba(52,36,58,.14);
+
+    --good: #0E9E3D;   --good-bg: #E4F5E9;
+    --warn: #C98416;   --warn-bg: #FBEFD7;
+    --crit: #D03B3B;   --crit-bg: #FBE3E3;
+
+    /* chart categorical (validated) */
+    --s1:#2a78d6; --s2:#e87ba4; --s3:#eda100; --s4:#1baf7a;
+    --s5:#eb6834; --s6:#4a3aa7; --s7:#008300; --s8:#e34948;
+
+    --radius: 16px;
+    --radius-sm: 11px;
+    --maxw: 900px;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", sans-serif;
+    --display: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg: #191221;
+      --surface: #241C2F;
+      --surface-2: #2F2439;
+      --surface-3: #332633;
+      --ink: #F6EDF2;
+      --ink-2: #C3B2CB;
+      --ink-3: #8E7D97;
+      --accent: #F07394;
+      --accent-soft: #3A2333;
+      --accent-2: #F0AE5F;
+      --accent-3: #46B9AE;
+      --line: #3A2E46;
+      --line-2: #45384F;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,.5);
+      --good:#3FBF66; --good-bg:#17351F;
+      --warn:#E0A93E; --warn-bg:#3A2C13;
+      --crit:#EC6A6A; --crit-bg:#3A1E1E;
+      --s1:#3987e5; --s2:#d55181; --s3:#c98500; --s4:#199e70;
+      --s5:#d95926; --s6:#9085e9; --s7:#2fae2f; --s8:#e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #191221; --surface: #241C2F; --surface-2: #2F2439; --surface-3: #332633;
+    --ink: #F6EDF2; --ink-2: #C3B2CB; --ink-3: #8E7D97;
+    --accent: #F07394; --accent-soft: #3A2333; --accent-2: #F0AE5F; --accent-3: #46B9AE;
+    --line: #3A2E46; --line-2: #45384F;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,.5);
+    --good:#3FBF66; --good-bg:#17351F; --warn:#E0A93E; --warn-bg:#3A2C13; --crit:#EC6A6A; --crit-bg:#3A1E1E;
+    --s1:#3987e5; --s2:#d55181; --s3:#c98500; --s4:#199e70;
+    --s5:#d95926; --s6:#9085e9; --s7:#2fae2f; --s8:#e66767;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(520px 300px at 12% -8%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+      radial-gradient(460px 280px at 96% -4%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 70%);
+  }
+  .app { position: relative; z-index: 1; max-width: var(--maxw); margin: 0 auto; padding: 0 16px 120px; }
+
+  h1,h2,h3 { font-family: var(--display); font-weight: 700; letter-spacing: -.01em; text-wrap: balance; margin: 0; }
+  button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; font-size: 16px; color: var(--ink); }
+
+  /* ===== Header ===== */
+  header { padding: 22px 2px 8px; }
+  .brandrow { display: flex; align-items: center; gap: 12px; }
+  .cake {
+    width: 46px; height: 46px; flex: none; border-radius: 14px;
+    background: linear-gradient(145deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; font-size: 24px; box-shadow: var(--shadow);
+  }
+  .brandrow h1 { font-size: clamp(21px, 5.4vw, 28px); }
+  .brandrow .sub { color: var(--ink-2); font-size: 13px; margin-top: 1px; }
+  .iconbtn {
+    margin-left: auto; border: 1px solid var(--line-2); background: var(--surface);
+    color: var(--ink-2); width: 42px; height: 42px; border-radius: 12px; font-size: 18px;
+    display: grid; place-items: center; transition: .15s;
+  }
+  .iconbtn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .partycard {
+    margin-top: 16px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  }
+  .countdown { display: flex; align-items: baseline; gap: 8px; }
+  .countdown .num {
+    font-family: var(--display); font-weight: 700; font-size: 44px; line-height: 1;
+    color: var(--accent); letter-spacing: -.02em;
+  }
+  .countdown .lbl { color: var(--ink-2); font-size: 13px; max-width: 90px; }
+  .pc-meta { display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--line); padding-left: 18px; }
+  .pc-meta .who { font-family: var(--display); font-weight: 700; font-size: 18px; }
+  .pc-meta .when { color: var(--ink-2); font-size: 13.5px; }
+  .pc-meta .where { color: var(--ink-3); font-size: 13px; }
+  .pc-empty { color: var(--ink-2); font-size: 14px; }
+  .pc-empty b { color: var(--ink); }
+
+  /* ===== Tabs ===== */
+  nav.tabs {
+    position: sticky; top: 0; z-index: 20; margin: 18px -16px 4px; padding: 8px 16px;
+    background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px);
+    display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+    border-bottom: 1px solid var(--line);
+  }
+  nav.tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: none; border: 1px solid transparent; background: transparent; color: var(--ink-2);
+    padding: 8px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; white-space: nowrap;
+    display: flex; align-items: center; gap: 7px; transition: .15s;
+  }
+  .tab:hover { color: var(--ink); background: var(--surface-2); }
+  .tab[aria-selected="true"] { background: var(--accent); color: #fff; box-shadow: var(--shadow); }
+  .tab .ic { font-size: 15px; }
+
+  main { padding-top: 18px; }
+  .view { display: none; animation: fade .25s ease; }
+  .view.active { display: block; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .view, .modal-card { animation: none !important; } }
+
+  .view-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .view-head h2 { font-size: 20px; }
+  .view-head .count { color: var(--ink-3); font-size: 13px; font-weight: 600; }
+  .view-head .spacer { flex: 1; }
+
+  /* ===== Buttons ===== */
+  .btn {
+    border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    padding: 10px 16px; border-radius: 11px; font-weight: 600; font-size: 14px;
+    display: inline-flex; align-items: center; gap: 7px; transition: .15s;
+  }
+  .btn:hover { filter: brightness(1.06); box-shadow: var(--shadow); }
+  .btn.ghost { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.sm { padding: 7px 12px; font-size: 13px; border-radius: 9px; }
+
+  /* ===== Cards / lists ===== */
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px;
+  }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  @media (max-width: 560px){ .grid2 { grid-template-columns: 1fr; } }
+
+  .row {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 12px 14px; display: flex; align-items: center; gap: 12px; transition: .15s;
+  }
+  .row:hover { border-color: var(--line-2); }
+  .row .grow { flex: 1; min-width: 0; }
+  .row .title { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+  .row .meta { color: var(--ink-2); font-size: 13px; margin-top: 1px; }
+  .row .amt { font-weight: 700; font-family: var(--display); white-space: nowrap; }
+  .rowbtn { border: none; background: none; color: var(--ink-3); font-size: 17px; padding: 6px; border-radius: 8px; transition:.15s; }
+  .rowbtn:hover { color: var(--crit); background: var(--crit-bg); }
+
+  /* chips / pills */
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700;
+          padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.good { background: var(--good-bg); color: var(--good); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.crit { background: var(--crit-bg); color: var(--crit); }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
+  .seg button { border: none; background: none; color: var(--ink-2); font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 7px; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+
+  /* checklist */
+  .check { display: flex; align-items: center; gap: 12px; }
+  .cbx { width: 24px; height: 24px; flex: none; border: 2px solid var(--line-2); border-radius: 8px;
+         display: grid; place-items: center; color: #fff; transition: .15s; background: var(--surface); }
+  .cbx.on { background: var(--good); border-color: var(--good); }
+  .cbx svg { width: 14px; height: 14px; opacity: 0; transform: scale(.6); transition: .15s; }
+  .cbx.on svg { opacity: 1; transform: scale(1); }
+  .check.done .title { text-decoration: line-through; color: var(--ink-3); }
+  .progress { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; border:1px solid var(--line); }
+  .progress > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; transition: width .4s; }
+
+  /* calculator */
+  .calc-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .calc-row:last-child { border-bottom: none; }
+  .calc-row .ci-name { font-weight: 600; font-size: 14.5px; }
+  .calc-row .ci-rate { color: var(--ink-3); font-size: 12px; }
+  .calc-row .qty { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--accent); text-align: right; }
+  .calc-row .unit { color: var(--ink-2); font-size: 12px; }
+  .rate-input { width: 62px; text-align: center; }
+
+  /* inputs */
+  label.f { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+  input.t, select.t, textarea.t {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px;
+    padding: 11px 12px; color: var(--ink); transition: .15s;
+  }
+  input.t:focus, select.t:focus, textarea.t:focus, .rate-input:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .rate-input { background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 6px; }
+  textarea.t { resize: vertical; min-height: 76px; line-height: 1.55; }
+
+  /* notes */
+  .note { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent-2);
+          border-radius: var(--radius-sm); padding: 13px 15px; box-shadow: var(--shadow); }
+  .note .txt { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; }
+  .note .foot { display: flex; align-items: center; margin-top: 9px; }
+  .note .date { color: var(--ink-3); font-size: 11.5px; }
+
+  /* empty state */
+  .empty { text-align: center; padding: 34px 20px; color: var(--ink-2); }
+  .empty .em { font-size: 34px; }
+  .empty p { margin: 8px 0 0; font-size: 14px; }
+
+  /* KPI tiles */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 620px){ .kpis { grid-template-columns: 1fr 1fr; } }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 13px 14px; box-shadow: var(--shadow); }
+  .kpi .k-lbl { color: var(--ink-2); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .k-val { font-family: var(--display); font-weight: 700; font-size: 25px; margin-top: 3px; letter-spacing: -.01em; }
+  .kpi .k-sub { color: var(--ink-3); font-size: 12px; }
+
+  .chart-card h3 { font-size: 15.5px; }
+  .chart-card .csub { color: var(--ink-2); font-size: 12.5px; margin: 2px 0 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+  .legend .li { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+  .legend .sw { width: 11px; height: 11px; border-radius: 4px; }
+
+  /* bars chart */
+  .barlist { display: flex; flex-direction: column; gap: 12px; }
+  .barrow .bl { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .barrow .bl .bname { font-weight: 600; }
+  .barrow .bl .bval { font-weight: 700; font-family: var(--display); }
+  .bartrack { height: 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .bartrack > span { display: block; height: 100%; border-radius: 999px; transition: width .5s; }
+
+  /* stacked bar */
+  .stacked { height: 26px; display: flex; border-radius: 999px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); }
+  .stacked > span { height: 100%; box-shadow: inset -2px 0 0 var(--surface); transition: width .5s; }
+
+  /* donut */
+  .donut-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .donut { position: relative; width: 138px; height: 138px; flex: none; }
+  .donut .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .donut .center .big { font-family: var(--display); font-weight: 700; font-size: 30px; line-height: 1; }
+  .donut .center .small { font-size: 11px; color: var(--ink-2); }
+
+  /* tooltip */
+  #tt { position: fixed; z-index: 100; pointer-events: none; background: var(--ink); color: var(--bg);
+        padding: 7px 10px; border-radius: 9px; font-size: 12.5px; font-weight: 600; box-shadow: var(--shadow-lg);
+        opacity: 0; transition: opacity .12s; max-width: 220px; }
+  #tt .tt-sub { font-weight: 500; opacity: .8; }
+
+  /* modal */
+  .modal { position: fixed; inset: 0; z-index: 200; display: none; align-items: flex-end; justify-content: center;
+           background: rgba(20,12,24,.5); backdrop-filter: blur(2px); padding: 0; }
+  .modal.open { display: flex; }
+  @media (min-width: 560px){ .modal { align-items: center; padding: 20px; } }
+  .modal-card { background: var(--surface); width: 100%; max-width: 460px; border-radius: 20px 20px 0 0;
+                box-shadow: var(--shadow-lg); padding: 20px; animation: slideup .28s cubic-bezier(.2,.8,.2,1);
+                max-height: 92vh; overflow-y: auto; }
+  @media (min-width: 560px){ .modal-card { border-radius: 20px; } }
+  @keyframes slideup { from { transform: translateY(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+  .modal-card h3 { font-size: 19px; margin-bottom: 16px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .modal-actions .btn { flex: 1; justify-content: center; }
+
+  .hint { color: var(--ink-3); font-size: 12.5px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brandrow">
+      <div class="cake">🎂</div>
+      <div>
+        <h1 id="hTitle">1 Aninho</h1>
+        <div class="sub">Organizador da festa</div>
+      </div>
+      <button class="iconbtn" id="btnTheme" title="Alternar tema" aria-label="Alternar tema claro/escuro">◐</button>
+      <button class="iconbtn" id="btnSettings" title="Detalhes da festa" aria-label="Editar detalhes da festa">⚙</button>
+    </div>
+
+    <div class="partycard" id="partyCard"></div>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button class="tab" role="tab" data-view="resumo"><span class="ic">📊</span>Resumo</button>
+    <button class="tab" role="tab" data-view="convidados"><span class="ic">👗</span>Convidados</button>
+    <button class="tab" role="tab" data-view="checklist"><span class="ic">✅</span>Checklist</button>
+    <button class="tab" role="tab" data-view="gastos"><span class="ic">💰</span>Gastos</button>
+    <button class="tab" role="tab" data-view="calc"><span class="ic">🧮</span>Calculadora</button>
+    <button class="tab" role="tab" data-view="notas"><span class="ic">📝</span>Anotações</button>
+  </nav>
+
+  <main>
+    <section class="view" id="view-resumo" role="tabpanel"></section>
+    <section class="view" id="view-convidados" role="tabpanel"></section>
+    <section class="view" id="view-checklist" role="tabpanel"></section>
+    <section class="view" id="view-gastos" role="tabpanel"></section>
+    <section class="view" id="view-calc" role="tabpanel"></section>
+    <section class="view" id="view-notas" role="tabpanel"></section>
+  </main>
+</div>
+
+<div id="tt"></div>
+<div class="modal" id="modal" aria-modal="true" role="dialog"><div class="modal-card" id="modalCard"></div></div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+  const el = (t, a={}, kids=[]) => {
+    const n = document.createElement(t);
+    for (const k in a) {
+      if (k === "class") n.className = a[k];
+      else if (k === "html") n.innerHTML = a[k];
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), a[k]);
+      else if (a[k] !== false && a[k] != null) n.setAttribute(k, a[k]);
+    }
+    (Array.isArray(kids) ? kids : [kids]).forEach(c => c != null && n.append(c.nodeType ? c : document.createTextNode(c)));
+    return n;
+  };
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const brl = n => (n||0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
+  const numFmt = n => (Math.round(n*10)/10).toLocaleString("pt-BR");
+
+  // ===== State / persistence =====
+  const KEY = "festa1ano.v1";
+  const DEFAULT = {
+    settings: { babyName:"", partyDate:"", venue:"", theme:"", budget:0 },
+    guests: [],
+    checklist: [],
+    expenses: [],
+    notes: [],
+    calc: { manualPeople:null, rates:null }
+  };
+  let S;
+  try { S = Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem(KEY) || "{}")); }
+  catch { S = structuredClone(DEFAULT); }
+  for (const k in DEFAULT) if (S[k] == null) S[k] = structuredClone(DEFAULT[k]);
+  const save = () => localStorage.setItem(KEY, JSON.stringify(S));
+
+  const EXP_CATS = ["Decoração","Comida & Bebida","Bolo & Doces","Lembrancinhas","Local & Aluguel","Roupas","Fotos & Vídeo","Outros"];
+  const CAT_COLOR = i => `var(--s${(i%8)+1})`;
+
+  const CALC_ITEMS = [
+    { id:"salg", name:"Salgadinhos", rate:10, unit:"un", tip:"fritos e assados" },
+    { id:"doce", name:"Docinhos", rate:6, unit:"un", tip:"brigadeiro, beijinho…" },
+    { id:"bolo", name:"Fatias de bolo", rate:1, unit:"fatias", tip:"1 por pessoa" },
+    { id:"refri", name:"Refrigerante", rate:0.4, unit:"L", tip:"400 ml/pessoa" },
+    { id:"suco", name:"Suco", rate:0.2, unit:"L", tip:"200 ml/pessoa" },
+    { id:"agua", name:"Água", rate:0.25, unit:"L", tip:"250 ml/pessoa" },
+    { id:"copo", name:"Copos descartáveis", rate:3, unit:"un", tip:"3 por pessoa" },
+    { id:"prato", name:"Pratos", rate:2, unit:"un", tip:"2 por pessoa" },
+    { id:"guard", name:"Guardanapos", rate:4, unit:"un", tip:"4 por pessoa" },
+  ];
+
+  // ===== Tooltip =====
+  const tt = $("#tt");
+  const showTT = (e, html) => { tt.innerHTML = html; tt.style.opacity = 1; moveTT(e); };
+  const moveTT = e => {
+    const x = (e.touches? e.touches[0].clientX : e.clientX);
+    const y = (e.touches? e.touches[0].clientY : e.clientY);
+    const w = tt.offsetWidth, h = tt.offsetHeight;
+    tt.style.left = Math.min(Math.max(8, x - w/2), innerWidth - w - 8) + "px";
+    tt.style.top = Math.max(8, y - h - 12) + "px";
+  };
+  const hideTT = () => { tt.style.opacity = 0; };
+  const bindTT = (node, html) => {
+    node.addEventListener("mouseenter", e => showTT(e, html));
+    node.addEventListener("mousemove", moveTT);
+    node.addEventListener("mouseleave", hideTT);
+  };
+
+  // ===== Derived =====
+  const guestCount = g => (Number(g.adults)||0) + (Number(g.children)||0);
+  const totals = () => {
+    const conf = S.guests.filter(g=>g.status==="confirmed");
+    const pend = S.guests.filter(g=>g.status==="pending");
+    const dec  = S.guests.filter(g=>g.status==="declined");
+    const peopleConf = conf.reduce((s,g)=>s+guestCount(g),0);
+    const peoplePend = pend.reduce((s,g)=>s+guestCount(g),0);
+    const spentPaid = S.expenses.filter(e=>e.paid).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const spentPend = S.expenses.filter(e=>!e.paid).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const done = S.checklist.filter(c=>c.done).length;
+    return { conf, pend, dec, peopleConf, peoplePend,
+      spentPaid, spentPend, spentTotal: spentPaid+spentPend,
+      checkDone: done, checkTotal: S.checklist.length };
+  };
+  const expectedPeople = () => {
+    if (S.calc.manualPeople != null && S.calc.manualPeople !== "") return Number(S.calc.manualPeople);
+    const t = totals();
+    return t.peopleConf + t.peoplePend || 0;
+  };
+  const daysLeft = () => {
+    if (!S.settings.partyDate) return null;
+    const d = new Date(S.settings.partyDate + "T00:00:00");
+    const now = new Date(); now.setHours(0,0,0,0);
+    return Math.round((d - now) / 86400000);
+  };
+
+  // ===== Header / party card =====
+  function renderHeader(){
+    $("#hTitle").textContent = S.settings.babyName ? S.settings.babyName : "1 Aninho";
+    const pc = $("#partyCard"); pc.innerHTML = "";
+    const dl = daysLeft();
+    if (!S.settings.babyName && !S.settings.partyDate) {
+      pc.append(el("div", { class:"pc-empty", html:"👋 <b>Bem-vinda!</b> Toque na engrenagem ⚙ pra colocar o nome da sua filha e a data da festa." }));
+      return;
+    }
+    let numTxt = "—", lblTxt = "defina a data";
+    if (dl != null) {
+      if (dl > 1) { numTxt = dl; lblTxt = "dias para a festa 🎉"; }
+      else if (dl === 1) { numTxt = 1; lblTxt = "é amanhã! 🎈"; }
+      else if (dl === 0) { numTxt = "🎂"; lblTxt = "é hoje! Aproveite ❤"; }
+      else { numTxt = "✓"; lblTxt = "festa realizada"; }
+    }
+    pc.append(
+      el("div", { class:"countdown" }, [
+        el("span", { class:"num" }, String(numTxt)),
+        el("span", { class:"lbl" }, lblTxt),
+      ]),
+      el("div", { class:"pc-meta" }, [
+        el("div", { class:"who" }, (S.settings.babyName||"Nossa filha") + " faz 1 aninho"),
+        el("div", { class:"when" }, S.settings.partyDate ? "🗓 " + fmtDate(S.settings.partyDate) : "🗓 data a definir"),
+        S.settings.venue ? el("div", { class:"where" }, "📍 " + S.settings.venue) : null,
+      ])
+    );
+  }
+  const WD = ["domingo","segunda","terça","quarta","quinta","sexta","sábado"];
+  const MO = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  function fmtDate(iso){
+    const d = new Date(iso + "T00:00:00");
+    return `${WD[d.getDay()]}, ${d.getDate()} de ${MO[d.getMonth()]}. de ${d.getFullYear()}`;
+  }
+
+  // ===== Modal =====
+  const modal = $("#modal"), modalCard = $("#modalCard");
+  function openModal(title, bodyNodes, onSave, saveLabel="Salvar"){
+    modalCard.innerHTML = "";
+    modalCard.append(el("h3", {}, title));
+    (Array.isArray(bodyNodes)?bodyNodes:[bodyNodes]).forEach(n=>modalCard.append(n));
+    const actions = el("div", { class:"modal-actions" }, [
+      el("button", { class:"btn ghost", onclick: closeModal }, "Cancelar"),
+      el("button", { class:"btn", onclick:()=>{ if(onSave()!==false) closeModal(); } }, saveLabel),
+    ]);
+    modalCard.append(actions);
+    modal.classList.add("open");
+    const first = modalCard.querySelector("input, select, textarea");
+    if (first) setTimeout(()=>first.focus(), 50);
+  }
+  function closeModal(){ modal.classList.remove("open"); }
+  modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+  function field(label, input){ return el("label", { class:"f" }, [label, input]); }
+
+  // ===== SETTINGS =====
+  $("#btnSettings").addEventListener("click", () => {
+    const name = el("input", { class:"t", value:S.settings.babyName, placeholder:"Ex.: Helena" });
+    const date = el("input", { class:"t", type:"date", value:S.settings.partyDate });
+    const venue = el("input", { class:"t", value:S.settings.venue, placeholder:"Ex.: Salão de festas do prédio" });
+    const budget = el("input", { class:"t", type:"number", min:0, step:"any", value:S.settings.budget||"", placeholder:"Ex.: 3000" });
+    openModal("Detalhes da festa", el("div", { class:"stack" }, [
+      field("Nome da aniversariante", name),
+      field("Data da festa", date),
+      field("Local", venue),
+      field("Orçamento total (R$)", budget),
+    ]), () => {
+      S.settings.babyName = name.value.trim();
+      S.settings.partyDate = date.value;
+      S.settings.venue = venue.value.trim();
+      S.settings.budget = Number(budget.value) || 0;
+      save(); renderHeader(); renderAll();
+    });
+  });
+
+  // ===== Theme toggle =====
+  $("#btnTheme").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+    localStorage.setItem("festa1ano.theme", dark ? "light" : "dark");
+  });
+  const savedTheme = localStorage.getItem("festa1ano.theme");
+  if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+
+  // ===== Tabs =====
+  const tabs = $$("#tabs .tab");
+  let current = "resumo";
+  function selectTab(v){
+    current = v;
+    tabs.forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === v)));
+    $$(".view").forEach(s => s.classList.toggle("active", s.id === "view-"+v));
+    renderView(v);
+    document.querySelector(".app").scrollIntoView({ block:"start" });
+  }
+  tabs.forEach(t => t.addEventListener("click", () => selectTab(t.dataset.view)));
+
+  function renderView(v){
+    if (v==="resumo") renderResumo();
+    else if (v==="convidados") renderConvidados();
+    else if (v==="checklist") renderChecklist();
+    else if (v==="gastos") renderGastos();
+    else if (v==="calc") renderCalc();
+    else if (v==="notas") renderNotas();
+  }
+  function renderAll(){ renderView(current); }
+
+  function viewHead(container, title, countTxt, actionBtn){
+    const h = el("div", { class:"view-head" }, [ el("h2", {}, title) ]);
+    if (countTxt != null) h.append(el("span", { class:"count" }, countTxt));
+    h.append(el("div", { class:"spacer" }));
+    if (actionBtn) h.append(actionBtn);
+    container.append(h);
+  }
+  function emptyState(emoji, text){
+    return el("div", { class:"card empty" }, [ el("div", { class:"em" }, emoji), el("p", { html:text }) ]);
+  }
+
+  // ============ RESUMO (dashboard + charts) ============
+  function renderResumo(){
+    const c = $("#view-resumo"); c.innerHTML = "";
+    const t = totals();
+    const budget = S.settings.budget || 0;
+
+    // KPIs
+    const kpis = el("div", { class:"kpis" }, [
+      kpi("Confirmados", t.peopleConf, `${t.conf.length} famílias/convidados`),
+      kpi("Gasto total", brl(t.spentTotal), budget ? `de ${brl(budget)}` : "sem orçamento definido"),
+      kpi("Checklist", t.checkTotal ? `${t.checkDone}/${t.checkTotal}` : "—", t.checkTotal ? `${Math.round(t.checkDone/t.checkTotal*100)}% concluído` : "sem tarefas"),
+      kpi("Para comprar", expectedPeople(), "pessoas esperadas"),
+    ]);
+    c.append(kpis);
+
+    if (!S.guests.length && !S.expenses.length && !S.checklist.length) {
+      c.append(el("div", { style:"height:12px" }));
+      c.append(emptyState("📊", "Os gráficos aparecem aqui conforme você adiciona <b>convidados</b>, <b>gastos</b> e <b>tarefas</b>. Comece por uma das abas acima! 🎈"));
+      return;
+    }
+
+    const grid = el("div", { class:"grid2", style:"margin-top:12px" });
+
+    // --- Guests donut ---
+    const gcard = el("div", { class:"card chart-card" }, [ el("h3", {}, "Convidados"), el("div", { class:"csub" }, "por confirmação de presença") ]);
+    if (S.guests.length){
+      const segs = [
+        { label:"Confirmados", n:t.peopleConf, color:"var(--good)", cls:"good" },
+        { label:"Pendentes", n:t.peoplePend, color:"var(--warn)", cls:"warn" },
+        { label:"Não vão", n:t.dec.reduce((s,g)=>s+guestCount(g),0), color:"var(--crit)", cls:"crit" },
+      ];
+      gcard.append(donut(segs));
+    } else gcard.append(el("p", { class:"hint" }, "Adicione convidados para ver o gráfico."));
+    grid.append(gcard);
+
+    // --- Budget stacked ---
+    const bcard = el("div", { class:"card chart-card" }, [ el("h3", {}, "Orçamento"), el("div", { class:"csub" }, budget ? "quanto já saiu do bolso" : "defina um orçamento em ⚙") ]);
+    bcard.append(budgetBar(t, budget));
+    grid.append(bcard);
+    c.append(grid);
+
+    // --- Expenses by category (full width bars) ---
+    if (S.expenses.length){
+      const map = {};
+      S.expenses.forEach(e => map[e.category] = (map[e.category]||0) + (Number(e.amount)||0));
+      const rows = Object.entries(map).sort((a,b)=>b[1]-a[1]);
+      const max = Math.max(...rows.map(r=>r[1]), 1);
+      const ecard = el("div", { class:"card chart-card", style:"margin-top:12px" }, [
+        el("h3", {}, "Gastos por categoria"), el("div", { class:"csub" }, `total de ${brl(t.spentTotal)}`) ]);
+      const bl = el("div", { class:"barlist" });
+      rows.forEach(([cat, val]) => {
+        const idx = Math.max(0, EXP_CATS.indexOf(cat));
+        const row = el("div", { class:"barrow" }, [
+          el("div", { class:"bl" }, [ el("span", { class:"bname" }, cat), el("span", { class:"bval" }, brl(val)) ]),
+          el("div", { class:"bartrack" }, el("span", { style:`width:${val/max*100}%; background:${CAT_COLOR(idx)}` })),
+        ]);
+        bl.append(row);
+        bindTT(row, `<div>${cat}</div><div class="tt-sub">${brl(val)} · ${Math.round(val/t.spentTotal*100)}% do total</div>`);
+      });
+      ecard.append(bl);
+      c.append(ecard);
+    }
+
+    // --- Checklist progress ---
+    if (S.checklist.length){
+      const pct = Math.round(t.checkDone/t.checkTotal*100);
+      const cc = el("div", { class:"card chart-card", style:"margin-top:12px" }, [
+        el("h3", {}, "Preparativos"),
+        el("div", { class:"csub" }, `${t.checkDone} de ${t.checkTotal} tarefas concluídas`),
+        el("div", { class:"progress" }, el("span", { style:`width:${pct}%` })),
+        el("div", { class:"hint", style:"margin-top:8px" }, pct===100 ? "Tudo pronto! 🎉" : `Faltam ${t.checkTotal - t.checkDone} tarefas.`),
+      ]);
+      c.append(cc);
+    }
+  }
+  function kpi(lbl, val, sub){
+    return el("div", { class:"kpi" }, [
+      el("div", { class:"k-lbl" }, lbl),
+      el("div", { class:"k-val" }, String(val)),
+      el("div", { class:"k-sub" }, sub),
+    ]);
+  }
+  function donut(segs){
+    const total = segs.reduce((s,x)=>s+x.n,0);
+    const R=54, C=2*Math.PI*R, wrap = el("div", { class:"donut-wrap" });
+    const box = el("div", { class:"donut" });
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns,"svg");
+    svg.setAttribute("viewBox","0 0 138 138"); svg.style.transform="rotate(-90deg)";
+    const mkArc = (color, dash, offset, cap) => {
+      const cir = document.createElementNS(ns,"circle");
+      cir.setAttribute("cx","69"); cir.setAttribute("cy","69"); cir.setAttribute("r",R);
+      cir.setAttribute("fill","none"); cir.setAttribute("stroke",color);
+      cir.setAttribute("stroke-width","16"); cir.setAttribute("stroke-dasharray",dash);
+      cir.setAttribute("stroke-dashoffset",offset);
+      if (cap) cir.setAttribute("stroke-linecap","round");
+      return cir;
+    };
+    svg.append(mkArc("var(--surface-2)", C, 0, false));
+    let off = 0;
+    if (total>0) segs.forEach(s => {
+      if (s.n<=0) return;
+      const len = s.n/total*C;
+      // small 2px gap between segments for separation
+      const gap = segs.filter(x=>x.n>0).length > 1 ? 2 : 0;
+      const arc = mkArc(s.color, `${Math.max(0,len-gap)} ${C}`, -off, true);
+      arc.style.transition = "stroke-dashoffset .5s";
+      svg.append(arc);
+      off += len;
+    });
+    box.append(svg, el("div", { class:"center" }, [
+      el("div", { class:"big" }, String(total)),
+      el("div", { class:"small" }, "pessoas"),
+    ]));
+    const leg = el("div", {}, segs.map(s => {
+      const li = el("div", { class:"li" }, [
+        el("span", { class:"sw", style:`background:${s.color}` }),
+        el("span", {}, `${s.label}`),
+        el("b", { style:"color:var(--ink);margin-left:2px" }, String(s.n)),
+      ]);
+      li.style.width="100%"; li.style.justifyContent="flex-start"; li.style.marginBottom="7px";
+      bindTT(li, `${s.label}: ${s.n} pessoa(s)${total?` · ${Math.round(s.n/total*100)}%`:""}`);
+      return li;
+    }));
+    wrap.append(box, leg);
+    return wrap;
+  }
+  function mkCircle(r, color, C, offset, w){
+    const ns="http://www.w3.org/2000/svg";
+    const cir=document.createElementNS(ns,"circle");
+    cir.setAttribute("cx","69"); cir.setAttribute("cy","69"); cir.setAttribute("r",r);
+    cir.setAttribute("fill","none"); cir.setAttribute("stroke",color);
+    cir.setAttribute("stroke-width",w); cir.setAttribute("stroke-dasharray",C);
+    cir.setAttribute("stroke-dashoffset",offset); cir.setAttribute("stroke-linecap","round");
+    return cir;
+  }
+  function budgetBar(t, budget){
+    const wrap = el("div", {});
+    if (budget>0){
+      const paid = Math.min(t.spentPaid, budget);
+      const pend = Math.min(t.spentPend, Math.max(0, budget - paid));
+      const overflow = Math.max(0, t.spentTotal - budget);
+      const rest = Math.max(0, budget - t.spentTotal);
+      const bar = el("div", { class:"stacked" });
+      const add = (n, color, label) => {
+        if (n<=0) return;
+        const sp = el("span", { style:`width:${n/Math.max(budget,t.spentTotal)*100}%; background:${color}` });
+        bindTT(sp, `${label}: ${brl(n)}`); bar.append(sp);
+      };
+      add(t.spentPaid, "var(--good)", "Já pago");
+      add(t.spentPend, "var(--warn)", "A pagar");
+      add(rest, "var(--surface-2)", "Disponível");
+      wrap.append(bar);
+      wrap.append(el("div", { class:"legend" }, [
+        legItem("var(--good)", "Pago " + brl(t.spentPaid)),
+        legItem("var(--warn)", "A pagar " + brl(t.spentPend)),
+        overflow>0
+          ? legItem("var(--crit)", "Estourou " + brl(overflow))
+          : legItem("var(--surface-2)", "Sobra " + brl(rest)),
+      ]));
+    } else {
+      const bar = el("div", { class:"stacked" });
+      const tot = t.spentTotal || 1;
+      const a = el("span", { style:`width:${t.spentPaid/tot*100}%; background:var(--good)` });
+      const b = el("span", { style:`width:${t.spentPend/tot*100}%; background:var(--warn)` });
+      bindTT(a, "Já pago: "+brl(t.spentPaid)); bindTT(b, "A pagar: "+brl(t.spentPend));
+      bar.append(a,b); wrap.append(bar);
+      wrap.append(el("div", { class:"legend" }, [
+        legItem("var(--good)", "Pago " + brl(t.spentPaid)),
+        legItem("var(--warn)", "A pagar " + brl(t.spentPend)),
+      ]));
+    }
+    return wrap;
+  }
+  function legItem(color, txt){ return el("span", { class:"li" }, [ el("span", { class:"sw", style:`background:${color}` }), el("span", {}, txt) ]); }
+
+  // ============ CONVIDADOS ============
+  const GST = { confirmed:{cls:"good",lbl:"Confirmado"}, pending:{cls:"warn",lbl:"Pendente"}, declined:{cls:"crit",lbl:"Não vai"} };
+  function renderConvidados(){
+    const c = $("#view-convidados"); c.innerHTML = "";
+    const t = totals();
+    viewHead(c, "Convidados", `${t.peopleConf+t.peoplePend} pessoas`,
+      el("button", { class:"btn sm", onclick:()=>editGuest() }, "＋ Adicionar"));
+
+    if (!S.guests.length){ c.append(emptyState("👗", "Nenhum convidado ainda.<br>Adicione a família e os amigos que vão celebrar com vocês! 💕")); return; }
+
+    // filter segment
+    let filter = "all";
+    const counts = { all:S.guests.length, confirmed:t.conf.length, pending:t.pend.length, declined:t.dec.length };
+    const seg = el("div", { class:"seg", style:"margin-bottom:14px" });
+    [["all","Todos"],["confirmed","Confirmados"],["pending","Pendentes"],["declined","Não vão"]].forEach(([k,l])=>{
+      seg.append(el("button", { "aria-pressed": String(k==="all"), onclick:(e)=>{
+        filter=k; $$("button",seg).forEach(b=>b.setAttribute("aria-pressed","false")); e.target.setAttribute("aria-pressed","true"); paint();
+      }}, `${l} (${counts[k]})`));
+    });
+    c.append(seg);
+    const list = el("div", { class:"stack" }); c.append(list);
+
+    function paint(){
+      list.innerHTML = "";
+      const rows = S.guests.filter(g => filter==="all" || g.status===filter);
+      if (!rows.length){ list.append(el("p", { class:"hint", style:"padding:8px 2px" }, "Ninguém nessa categoria.")); return; }
+      rows.forEach(g => {
+        const st = GST[g.status];
+        const parts = [];
+        if (g.adults) parts.push(`${g.adults} adulto${g.adults>1?"s":""}`);
+        if (g.children) parts.push(`${g.children} criança${g.children>1?"s":""}`);
+        const row = el("div", { class:"row" }, [
+          el("div", { class:"grow" }, [
+            el("div", { class:"title" }, g.name),
+            el("div", { class:"meta" }, [
+              el("span", { class:`pill ${st.cls}` }, [ el("span", { class:"dot" }), st.lbl ]),
+              " " + (parts.join(" · ") || "—") + (g.phone ? "  ·  📞 " + g.phone : ""),
+            ]),
+          ]),
+          el("button", { class:"rowbtn", title:"Editar", onclick:()=>editGuest(g) }, "✎"),
+          el("button", { class:"rowbtn", title:"Remover", onclick:()=>{ S.guests = S.guests.filter(x=>x!==g); save(); renderConvidados(); } }, "🗑"),
+        ]);
+        list.append(row);
+      });
+    }
+    paint();
+  }
+  function editGuest(g){
+    const isNew = !g;
+    const name = el("input", { class:"t", value:g?.name||"", placeholder:"Ex.: Família Silva / Vovó Ana" });
+    const adults = el("input", { class:"t", type:"number", min:0, value:g?.adults ?? 1 });
+    const children = el("input", { class:"t", type:"number", min:0, value:g?.children ?? 0 });
+    const phone = el("input", { class:"t", type:"tel", value:g?.phone||"", placeholder:"(opcional)" });
+    const status = el("select", { class:"t" });
+    [["pending","Pendente"],["confirmed","Confirmado"],["declined","Não vai"]].forEach(([v,l])=>
+      status.append(el("option", { value:v, selected: (g?.status||"pending")===v }, l)));
+    openModal(isNew ? "Novo convidado" : "Editar convidado", el("div", { class:"stack" }, [
+      field("Nome / família", name),
+      el("div", { class:"grid2" }, [ field("Adultos", adults), field("Crianças", children) ]),
+      field("Presença", status),
+      field("Telefone", phone),
+    ]), () => {
+      if (!name.value.trim()){ name.focus(); return false; }
+      const data = { name:name.value.trim(), adults:Number(adults.value)||0, children:Number(children.value)||0,
+        phone:phone.value.trim(), status:status.value };
+      if (isNew) S.guests.push(Object.assign({ id:uid() }, data));
+      else Object.assign(g, data);
+      save(); renderConvidados();
+    }, isNew ? "Adicionar" : "Salvar");
+  }
+
+  // ============ CHECKLIST ============
+  function renderChecklist(){
+    const c = $("#view-checklist"); c.innerHTML = "";
+    const t = totals();
+    viewHead(c, "Checklist", t.checkTotal?`${t.checkDone}/${t.checkTotal}`:null,
+      el("button", { class:"btn sm", onclick:addCheck }, "＋ Tarefa"));
+
+    if (S.checklist.length){
+      const pct = Math.round(t.checkDone/t.checkTotal*100);
+      c.append(el("div", { class:"card", style:"margin-bottom:14px" }, [
+        el("div", { style:"display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px" }, [
+          el("span", { class:"hint" }, "Progresso dos preparativos"),
+          el("b", {}, pct+"%") ]),
+        el("div", { class:"progress" }, el("span", { style:`width:${pct}%` })),
+      ]));
+    }
+
+    if (!S.checklist.length){
+      c.append(emptyState("✅", "Sua lista está vazia.<br>Quer começar com tarefas comuns de festa?"));
+      c.append(el("div", { style:"text-align:center;margin-top:12px" },
+        el("button", { class:"btn ghost", onclick:seedChecklist }, "✨ Adicionar tarefas sugeridas")));
+      return;
+    }
+    const list = el("div", { class:"stack" });
+    S.checklist.forEach(item => {
+      const row = el("div", { class:`row check ${item.done?"done":""}` }, [
+        el("button", { class:`cbx ${item.done?"on":""}`, "aria-label":"Concluir", onclick:()=>{ item.done=!item.done; save(); renderChecklist(); } },
+          el("span", { html:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' })),
+        el("div", { class:"grow" }, el("div", { class:"title" }, item.text)),
+        el("button", { class:"rowbtn", title:"Remover", onclick:()=>{ S.checklist=S.checklist.filter(x=>x!==item); save(); renderChecklist(); } }, "🗑"),
+      ]);
+      list.append(row);
+    });
+    c.append(list);
+  }
+  function addCheck(){
+    const txt = el("input", { class:"t", placeholder:"Ex.: Encomendar o bolo" });
+    openModal("Nova tarefa", field("O que precisa fazer?", txt), () => {
+      if (!txt.value.trim()) return false;
+      S.checklist.push({ id:uid(), text:txt.value.trim(), done:false });
+      save(); renderChecklist();
+    }, "Adicionar");
+  }
+  function seedChecklist(){
+    ["Definir tema e cores da festa","Fazer a lista de convidados","Reservar o local","Encomendar o bolo",
+     "Escolher os doces e salgados","Comprar decoração e balões","Contratar fotógrafo","Comprar o vestido da aniversariante",
+     "Preparar as lembrancinhas","Montar a playlist","Comprar velinha de 1 ano","Organizar mesa do bolo"]
+      .forEach(text => S.checklist.push({ id:uid(), text, done:false }));
+    save(); renderChecklist();
+  }
+
+  // ============ GASTOS ============
+  function renderGastos(){
+    const c = $("#view-gastos"); c.innerHTML = "";
+    const t = totals(); const budget = S.settings.budget||0;
+    viewHead(c, "Gastos", brl(t.spentTotal),
+      el("button", { class:"btn sm", onclick:()=>editExpense() }, "＋ Gasto"));
+
+    // summary
+    const sum = el("div", { class:"kpis", style:"margin-bottom:14px" }, [
+      kpi("Já pago", brl(t.spentPaid), `${S.expenses.filter(e=>e.paid).length} itens`),
+      kpi("A pagar", brl(t.spentPend), `${S.expenses.filter(e=>!e.paid).length} itens`),
+      budget ? kpi("Orçamento", brl(budget), t.spentTotal>budget?`estourou ${brl(t.spentTotal-budget)}`:`sobra ${brl(budget-t.spentTotal)}`)
+             : kpi("Orçamento", "—", "defina em ⚙"),
+      kpi("Total", brl(t.spentTotal), `${S.expenses.length} itens`),
+    ]);
+    c.append(sum);
+
+    if (!S.expenses.length){ c.append(emptyState("💰", "Nenhum gasto lançado.<br>Anote cada compra pra não perder o controle do orçamento. 💸")); return; }
+
+    const list = el("div", { class:"stack" });
+    [...S.expenses].forEach(e => {
+      const idx = Math.max(0, EXP_CATS.indexOf(e.category));
+      const row = el("div", { class:"row" }, [
+        el("span", { class:"sw", style:`width:10px;height:34px;border-radius:6px;flex:none;background:${CAT_COLOR(idx)}` }),
+        el("div", { class:"grow" }, [
+          el("div", { class:"title" }, e.description),
+          el("div", { class:"meta" }, [
+            e.category + "  ·  ",
+            el("span", { class:`pill ${e.paid?"good":"warn"}` }, [ el("span", { class:"dot" }), e.paid?"Pago":"A pagar" ]),
+          ]),
+        ]),
+        el("div", { style:"text-align:right" }, [
+          el("div", { class:"amt" }, brl(Number(e.amount)||0)),
+          el("button", { class:"rowbtn", title:e.paid?"Marcar a pagar":"Marcar pago", onclick:()=>{ e.paid=!e.paid; save(); renderGastos(); } }, e.paid?"↩":"✓"),
+        ]),
+        el("button", { class:"rowbtn", title:"Editar", onclick:()=>editExpense(e) }, "✎"),
+        el("button", { class:"rowbtn", title:"Remover", onclick:()=>{ S.expenses=S.expenses.filter(x=>x!==e); save(); renderGastos(); } }, "🗑"),
+      ]);
+      list.append(row);
+    });
+    c.append(list);
+  }
+  function editExpense(e){
+    const isNew = !e;
+    const desc = el("input", { class:"t", value:e?.description||"", placeholder:"Ex.: Bolo da confeitaria" });
+    const amount = el("input", { class:"t", type:"number", min:0, step:"any", value:e?.amount ?? "", placeholder:"0,00" });
+    const cat = el("select", { class:"t" });
+    EXP_CATS.forEach(k => cat.append(el("option", { value:k, selected:(e?.category||"Decoração")===k }, k)));
+    const paid = el("select", { class:"t" });
+    [["false","A pagar"],["true","Já pago"]].forEach(([v,l])=> paid.append(el("option", { value:v, selected:String(!!e?.paid)===v }, l)));
+    openModal(isNew?"Novo gasto":"Editar gasto", el("div", { class:"stack" }, [
+      field("Descrição", desc),
+      el("div", { class:"grid2" }, [ field("Valor (R$)", amount), field("Situação", paid) ]),
+      field("Categoria", cat),
+    ]), () => {
+      if (!desc.value.trim()){ desc.focus(); return false; }
+      const data = { description:desc.value.trim(), amount:Number(amount.value)||0, category:cat.value, paid:paid.value==="true" };
+      if (isNew) S.expenses.push(Object.assign({ id:uid() }, data));
+      else Object.assign(e, data);
+      save(); renderGastos();
+    }, isNew?"Adicionar":"Salvar");
+  }
+
+  // ============ CALCULADORA ============
+  function renderCalc(){
+    const c = $("#view-calc"); c.innerHTML = "";
+    viewHead(c, "Calculadora", "quanto comprar");
+
+    const t = totals();
+    const autoPeople = t.peopleConf + t.peoplePend;
+    const people = expectedPeople();
+    const manual = S.calc.manualPeople != null && S.calc.manualPeople !== "";
+
+    const peopleInput = el("input", { class:"t", type:"number", min:0, value: people||"", style:"max-width:110px;text-align:center;font-size:22px;font-weight:700" });
+    peopleInput.addEventListener("input", () => {
+      S.calc.manualPeople = peopleInput.value === "" ? "" : Number(peopleInput.value);
+      save(); paintItems();
+    });
+    const useAuto = el("button", { class:"btn ghost sm", onclick:()=>{ S.calc.manualPeople=null; save(); renderCalc(); } }, "Usar convidados");
+
+    c.append(el("div", { class:"card", style:"margin-bottom:14px" }, [
+      el("div", { style:"display:flex;align-items:center;gap:14px;flex-wrap:wrap" }, [
+        el("div", {}, [
+          el("div", { class:"k-lbl", style:"color:var(--ink-2);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em" }, "Pessoas na festa"),
+          el("div", { class:"hint", style:"margin-top:2px" }, manual ? "valor manual" : `${autoPeople} confirmados + pendentes`),
+        ]),
+        el("div", { class:"spacer", style:"flex:1" }),
+        peopleInput,
+        manual ? useAuto : null,
+      ]),
+    ]));
+
+    const card = el("div", { class:"card" }, [
+      el("h3", {}, "Lista de compras estimada"),
+      el("div", { class:"csub" }, "Baseado na quantidade por pessoa — toque no número azul pra ajustar 👇"),
+    ]);
+    const itemsBox = el("div", {});
+    card.append(itemsBox);
+    c.append(card);
+    c.append(el("p", { class:"hint", style:"text-align:center;margin-top:12px" }, "💡 As quantidades são uma estimativa. Ajuste conforme o gosto da galera!"));
+
+    const rates = S.calc.rates || {};
+    function paintItems(){
+      const ppl = expectedPeople();
+      itemsBox.innerHTML = "";
+      if (!ppl){ itemsBox.append(el("p", { class:"hint", style:"padding:14px 0" }, "Defina o número de pessoas (ou adicione convidados) para calcular.")); return; }
+      CALC_ITEMS.forEach(it => {
+        const rate = rates[it.id] != null ? rates[it.id] : it.rate;
+        const total = rate * ppl;
+        const rin = el("input", { class:"rate-input", type:"number", min:0, step:"any", value:rate, title:"por pessoa" });
+        rin.addEventListener("input", () => {
+          S.calc.rates = S.calc.rates || {};
+          S.calc.rates[it.id] = rin.value===""? 0 : Number(rin.value);
+          save();
+          qtyEl.textContent = numFmt((S.calc.rates[it.id]||0) * ppl);
+        });
+        const qtyEl = el("span", { class:"qty" }, numFmt(total));
+        itemsBox.append(el("div", { class:"calc-row" }, [
+          el("div", {}, [ el("div", { class:"ci-name" }, it.name), el("div", { class:"ci-rate" }, it.tip) ]),
+          el("div", { style:"display:flex;align-items:center;gap:6px;color:var(--ink-2);font-size:12px" }, [ rin, el("span", {}, "/pessoa") ]),
+          el("div", { style:"text-align:right" }, [ qtyEl, el("div", { class:"unit" }, it.unit) ]),
+        ]));
+      });
+    }
+    paintItems();
+  }
+
+  // ============ ANOTAÇÕES ============
+  function renderNotas(){
+    const c = $("#view-notas"); c.innerHTML = "";
+    viewHead(c, "Anotações", S.notes.length?`${S.notes.length}`:null,
+      el("button", { class:"btn sm", onclick:()=>editNote() }, "＋ Nota"));
+
+    if (!S.notes.length){ c.append(emptyState("📝", "Sem anotações ainda.<br>Guarde ideias, contatos de fornecedores, medidas, lembretes… 💭")); return; }
+    const grid = el("div", { class:"stack" });
+    [...S.notes].reverse().forEach(n => {
+      grid.append(el("div", { class:"note" }, [
+        el("div", { class:"txt" }, n.text),
+        el("div", { class:"foot" }, [
+          el("span", { class:"date" }, n.date || ""),
+          el("div", { style:"flex:1" }),
+          el("button", { class:"rowbtn", title:"Editar", onclick:()=>editNote(n) }, "✎"),
+          el("button", { class:"rowbtn", title:"Remover", onclick:()=>{ S.notes=S.notes.filter(x=>x!==n); save(); renderNotas(); } }, "🗑"),
+        ]),
+      ]));
+    });
+    c.append(grid);
+  }
+  function editNote(n){
+    const isNew = !n;
+    const txt = el("textarea", { class:"t", rows:6, placeholder:"Escreva sua anotação..." }); txt.value = n?.text||"";
+    openModal(isNew?"Nova anotação":"Editar anotação", field("Anotação", txt), () => {
+      if (!txt.value.trim()) return false;
+      const now = new Date().toLocaleDateString("pt-BR", { day:"2-digit", month:"short", year:"numeric" });
+      if (isNew) S.notes.push({ id:uid(), text:txt.value.trim(), date:now });
+      else { n.text = txt.value.trim(); n.date = now + " (editado)"; }
+      save(); renderNotas();
+    }, isNew?"Salvar":"Atualizar");
+  }
+
+  // ===== boot =====
+  renderHeader();
+  selectTab("resumo");
+})();
+</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
+  }
+</script>
+</body>
+</html>
