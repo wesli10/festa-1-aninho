@@ -218,6 +218,13 @@
                       font-size: 12.5px; font-weight: 600; padding: 7px; border-radius: 8px; transition: .15s; }
   .quick-pay button:hover { border-color: var(--accent); color: var(--accent); }
   .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .counter { display: flex; align-items: stretch; padding: 4px 0; margin-bottom: 14px; }
+  .counter .ci { flex: 1; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; }
+  .counter .ci + .ci { border-left: 1px solid var(--line); }
+  .counter .ci .e { font-size: 19px; line-height: 1; }
+  .counter .ci .n { font-family: var(--display); font-weight: 700; font-size: 27px; line-height: 1; color: var(--ink); }
+  .counter .ci .l { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+  .counter .ci.tot .n { color: var(--accent); }
   .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
   .seg button { border: none; background: none; color: var(--ink-2); font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 7px; }
   .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
@@ -786,6 +793,22 @@
       el("button", { class:"btn sm", onclick:()=>editGuest() }, "＋ Adicionar"));
 
     if (!S.guests.length){ c.append(emptyState("👗", "Nenhum convidado ainda.<br>Adicione a família e os amigos que vão celebrar com vocês! 💕")); return; }
+
+    // contador de adultos e crianças (esperados = confirmados + pendentes, sem quem não vai)
+    const exp = S.guests.filter(g => g.status !== "declined");
+    const nAd = exp.reduce((s,g)=>s+(Number(g.adults)||0),0);
+    const nCh = exp.reduce((s,g)=>s+(Number(g.children)||0),0);
+    const cItem = (emoji, label, n, cls="") => el("div", { class:"ci "+cls }, [
+      el("span", { class:"e" }, emoji), el("span", { class:"n" }, String(n)), el("span", { class:"l" }, label),
+    ]);
+    c.append(el("div", { class:"card", style:"padding:6px 6px 4px;margin-bottom:6px" },
+      el("div", { class:"counter" }, [
+        cItem("🧑","Adultos", nAd),
+        cItem("🧒","Crianças", nCh),
+        cItem("🎉","Total", nAd+nCh, "tot"),
+      ])
+    ));
+    c.append(el("div", { class:"hint", style:"margin:0 2px 12px" }, "Esperados (confirmados + pendentes). Quem marcou “Não vai” fica de fora."));
 
     // filter segment
     let filter = "all";
