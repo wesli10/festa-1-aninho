@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Organizador da festa de 1 aninho: convidados, checklist, gastos, calculadora de quantidades, anotações e resumo em gráficos.">
 <meta name="theme-color" content="#DB4C74" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#191221" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,10 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
-<script>
-  // aplica o tema salvo antes de renderizar (evita piscar)
-  try { var t=localStorage.getItem("festa1ano.theme"); if(t) document.documentElement.setAttribute("data-theme",t); } catch(e){}
-</script>
+<script>try{var t=localStorage.getItem("festa1ano.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 <title>Festa de 1 Aninho — Organizador</title>
 <style>
   /* ===== Tokens: "Confete & Luz de Vela" ===== */
@@ -214,6 +210,13 @@
   .pill.good { background: var(--good-bg); color: var(--good); }
   .pill.warn { background: var(--warn-bg); color: var(--warn); }
   .pill.crit { background: var(--crit-bg); color: var(--crit); }
+  .pill.neutral { background: var(--surface-2); color: var(--ink-2); }
+  .exp-prog { height: 6px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-top: 7px; }
+  .exp-prog > span { display: block; height: 100%; background: var(--good); border-radius: 999px; transition: width .4s; }
+  .quick-pay { display: flex; gap: 6px; margin-top: 8px; }
+  .quick-pay button { flex: 1; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink-2);
+                      font-size: 12.5px; font-weight: 600; padding: 7px; border-radius: 8px; transition: .15s; }
+  .quick-pay button:hover { border-color: var(--accent); color: var(--accent); }
   .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 2px; gap: 2px; }
   .seg button { border: none; background: none; color: var(--ink-2); font-size: 12.5px; font-weight: 600; padding: 5px 10px; border-radius: 7px; }
@@ -379,6 +382,22 @@
   const brl = n => (n||0).toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
   const numFmt = n => (Math.round(n*10)/10).toLocaleString("pt-BR");
 
+  // Campo de dinheiro com máscara de real ao vivo (digita os centavos da direita p/ esquerda)
+  function moneyInput(initial){
+    const inp = el("input", { class:"t", type:"text", inputmode:"numeric", placeholder:"R$ 0,00", autocomplete:"off" });
+    let cents = Math.round((Number(initial)||0) * 100);
+    const fmt = () => { inp.value = cents ? (cents/100).toLocaleString("pt-BR",{ style:"currency", currency:"BRL" }) : ""; };
+    inp.addEventListener("input", () => {
+      const digits = inp.value.replace(/\D/g, "").slice(0, 12);
+      cents = digits ? parseInt(digits, 10) : 0;
+      fmt();
+    });
+    inp.getValue = () => cents / 100;
+    inp.setValue = v => { cents = Math.round((Number(v)||0) * 100); fmt(); };
+    fmt();
+    return inp;
+  }
+
   // ===== State / persistence =====
   const KEY = "festa1ano.v1";
   const DEFAULT = {
@@ -393,9 +412,18 @@
   try { S = Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem(KEY) || "{}")); }
   catch { S = structuredClone(DEFAULT); }
   for (const k in DEFAULT) if (S[k] == null) S[k] = structuredClone(DEFAULT[k]);
+  // Migração: gastos passaram de pago/não-pago (boolean) para "valor pago" (parcial)
+  S.expenses.forEach(e => {
+    if (e.amountPaid == null) e.amountPaid = e.paid ? (Number(e.amount)||0) : 0;
+    delete e.paid;
+  });
   const save = () => localStorage.setItem(KEY, JSON.stringify(S));
 
   const EXP_CATS = ["Decoração","Comida & Bebida","Bolo & Doces","Lembrancinhas","Local & Aluguel","Roupas","Fotos & Vídeo","Outros"];
+  // helpers de pagamento (parcial)
+  const paidOf = e => Math.min(Number(e.amount)||0, Math.max(0, Number(e.amountPaid)||0));
+  const dueOf  = e => Math.max(0, (Number(e.amount)||0) - paidOf(e));
+  const statusOf = e => { const a=Number(e.amount)||0, p=paidOf(e); return a>0 && p>=a ? "pago" : p>0 ? "parcial" : "aberto"; };
   const CAT_COLOR = i => `var(--s${(i%8)+1})`;
 
   const CALC_ITEMS = [
@@ -435,8 +463,8 @@
     const dec  = S.guests.filter(g=>g.status==="declined");
     const peopleConf = conf.reduce((s,g)=>s+guestCount(g),0);
     const peoplePend = pend.reduce((s,g)=>s+guestCount(g),0);
-    const spentPaid = S.expenses.filter(e=>e.paid).reduce((s,e)=>s+(Number(e.amount)||0),0);
-    const spentPend = S.expenses.filter(e=>!e.paid).reduce((s,e)=>s+(Number(e.amount)||0),0);
+    const spentPaid = S.expenses.reduce((s,e)=>s+paidOf(e),0);
+    const spentPend = S.expenses.reduce((s,e)=>s+dueOf(e),0);
     const done = S.checklist.filter(c=>c.done).length;
     return { conf, pend, dec, peopleConf, peoplePend,
       spentPaid, spentPend, spentTotal: spentPaid+spentPend,
@@ -515,7 +543,7 @@
     const name = el("input", { class:"t", value:S.settings.babyName, placeholder:"Ex.: Helena" });
     const date = el("input", { class:"t", type:"date", value:S.settings.partyDate });
     const venue = el("input", { class:"t", value:S.settings.venue, placeholder:"Ex.: Salão de festas do prédio" });
-    const budget = el("input", { class:"t", type:"number", min:0, step:"any", value:S.settings.budget||"", placeholder:"Ex.: 3000" });
+    const budget = moneyInput(S.settings.budget);
     openModal("Detalhes da festa", el("div", { class:"stack" }, [
       field("Nome da aniversariante", name),
       field("Data da festa", date),
@@ -525,7 +553,7 @@
       S.settings.babyName = name.value.trim();
       S.settings.partyDate = date.value;
       S.settings.venue = venue.value.trim();
-      S.settings.budget = Number(budget.value) || 0;
+      S.settings.budget = budget.getValue() || 0;
       save(); renderHeader(); renderAll();
     });
   });
@@ -879,33 +907,45 @@
       el("button", { class:"btn sm", onclick:()=>editExpense() }, "＋ Gasto"));
 
     // summary
+    const nOpen = S.expenses.filter(e=>statusOf(e)!=="pago").length;
     const sum = el("div", { class:"kpis", style:"margin-bottom:14px" }, [
-      kpi("Já pago", brl(t.spentPaid), `${S.expenses.filter(e=>e.paid).length} itens`),
-      kpi("A pagar", brl(t.spentPend), `${S.expenses.filter(e=>!e.paid).length} itens`),
+      kpi("Total", brl(t.spentTotal), `${S.expenses.length} ${S.expenses.length===1?"gasto":"gastos"}`),
+      kpi("Já pago", brl(t.spentPaid), t.spentTotal?`${Math.round(t.spentPaid/t.spentTotal*100)}% do total`:"—"),
+      kpi("Falta pagar", brl(t.spentPend), nOpen?`${nOpen} ${nOpen===1?"item em aberto":"itens em aberto"}`:"tudo quitado 🎉"),
       budget ? kpi("Orçamento", brl(budget), t.spentTotal>budget?`estourou ${brl(t.spentTotal-budget)}`:`sobra ${brl(budget-t.spentTotal)}`)
              : kpi("Orçamento", "—", "defina em ⚙"),
-      kpi("Total", brl(t.spentTotal), `${S.expenses.length} itens`),
     ]);
     c.append(sum);
 
     if (!S.expenses.length){ c.append(emptyState("💰", "Nenhum gasto lançado.<br>Anote cada compra pra não perder o controle do orçamento. 💸")); return; }
 
+    const PILL = { pago:["good","Pago"], parcial:["warn","Parcial"], aberto:["neutral","A pagar"] };
     const list = el("div", { class:"stack" });
     [...S.expenses].forEach(e => {
       const idx = Math.max(0, EXP_CATS.indexOf(e.category));
-      const row = el("div", { class:"row" }, [
-        el("span", { class:"sw", style:`width:10px;height:34px;border-radius:6px;flex:none;background:${CAT_COLOR(idx)}` }),
-        el("div", { class:"grow" }, [
-          el("div", { class:"title" }, e.description),
-          el("div", { class:"meta" }, [
-            e.category + "  ·  ",
-            el("span", { class:`pill ${e.paid?"good":"warn"}` }, [ el("span", { class:"dot" }), e.paid?"Pago":"A pagar" ]),
-          ]),
+      const total = Number(e.amount)||0, pago = paidOf(e), falta = dueOf(e), st = statusOf(e);
+      const [pcls, plbl] = PILL[st];
+      const info = el("div", { class:"grow" }, [
+        el("div", { class:"title" }, e.description),
+        el("div", { class:"meta" }, [
+          e.category + "  ·  ",
+          el("span", { class:`pill ${pcls}` }, [ el("span", { class:"dot" }), plbl ]),
+          st==="parcial" ? el("span", { style:"color:var(--ink-2);margin-left:6px" }, `pago ${brl(pago)} de ${brl(total)}`) : null,
         ]),
+      ]);
+      if (st==="parcial" && total>0)
+        info.append(el("div", { class:"exp-prog" }, el("span", { style:`width:${pago/total*100}%` })));
+      const actions = [
         el("div", { style:"text-align:right" }, [
-          el("div", { class:"amt" }, brl(Number(e.amount)||0)),
-          el("button", { class:"rowbtn", title:e.paid?"Marcar a pagar":"Marcar pago", onclick:()=>{ e.paid=!e.paid; save(); renderGastos(); } }, e.paid?"↩":"✓"),
+          el("div", { class:"amt" }, brl(total)),
+          falta>0 ? el("div", { style:"font-size:11.5px;color:var(--warn);font-weight:700" }, "falta "+brl(falta)) : null,
         ]),
+      ];
+      if (falta>0) actions.push(el("button", { class:"rowbtn", title:"Marcar como quitado", onclick:()=>{ e.amountPaid=total; save(); renderGastos(); } }, "✓"));
+      const row = el("div", { class:"row", style:"flex-wrap:wrap" }, [
+        el("span", { class:"sw", style:`width:10px;height:34px;border-radius:6px;flex:none;background:${CAT_COLOR(idx)}` }),
+        info,
+        ...actions,
         el("button", { class:"rowbtn", title:"Editar", onclick:()=>editExpense(e) }, "✎"),
         el("button", { class:"rowbtn", title:"Remover", onclick:()=>{ S.expenses=S.expenses.filter(x=>x!==e); save(); renderGastos(); } }, "🗑"),
       ]);
@@ -916,18 +956,25 @@
   function editExpense(e){
     const isNew = !e;
     const desc = el("input", { class:"t", value:e?.description||"", placeholder:"Ex.: Bolo da confeitaria" });
-    const amount = el("input", { class:"t", type:"number", min:0, step:"any", value:e?.amount ?? "", placeholder:"0,00" });
+    const amount = moneyInput(e?.amount);
+    const paid = moneyInput(e?.amountPaid);
     const cat = el("select", { class:"t" });
     EXP_CATS.forEach(k => cat.append(el("option", { value:k, selected:(e?.category||"Decoração")===k }, k)));
-    const paid = el("select", { class:"t" });
-    [["false","A pagar"],["true","Já pago"]].forEach(([v,l])=> paid.append(el("option", { value:v, selected:String(!!e?.paid)===v }, l)));
+    // atalhos de pagamento
+    const quick = el("div", { class:"quick-pay" }, [
+      el("button", { type:"button", onclick:()=>paid.setValue(0) }, "Nada pago"),
+      el("button", { type:"button", onclick:()=>paid.setValue(amount.getValue()/2) }, "Paguei metade"),
+      el("button", { type:"button", onclick:()=>paid.setValue(amount.getValue()) }, "Paguei tudo"),
+    ]);
     openModal(isNew?"Novo gasto":"Editar gasto", el("div", { class:"stack" }, [
       field("Descrição", desc),
-      el("div", { class:"grid2" }, [ field("Valor (R$)", amount), field("Situação", paid) ]),
+      field("Valor total", amount),
+      field("Quanto já paguei", paid),
+      quick,
       field("Categoria", cat),
     ]), () => {
       if (!desc.value.trim()){ desc.focus(); return false; }
-      const data = { description:desc.value.trim(), amount:Number(amount.value)||0, category:cat.value, paid:paid.value==="true" };
+      const data = { description:desc.value.trim(), amount:amount.getValue(), amountPaid:Math.min(paid.getValue(), amount.getValue()), category:cat.value };
       if (isNew) S.expenses.push(Object.assign({ id:uid() }, data));
       else Object.assign(e, data);
       save(); renderGastos();
@@ -1036,10 +1083,6 @@
   selectTab("resumo");
 })();
 </script>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
-  }
-</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script>
 </body>
 </html>
