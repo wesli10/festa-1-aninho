@@ -268,6 +268,37 @@
   .note .foot { display: flex; align-items: center; margin-top: 9px; }
   .note .date { color: var(--ink-3); font-size: 11.5px; }
 
+  /* assistente (chat) */
+  .chat-log { display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
+  .msg { max-width: 88%; padding: 11px 14px; border-radius: 16px; font-size: 14.5px; line-height: 1.55;
+         white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: var(--shadow); }
+  .msg.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
+  .msg.ai { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+  .msg.err { align-self: flex-start; background: var(--crit-bg); color: var(--crit); border: 1px solid var(--crit); font-weight: 600; }
+  .acts { align-self: flex-start; display: flex; flex-wrap: wrap; gap: 6px; max-width: 88%; }
+  .act { font-size: 12px; font-weight: 600; background: var(--surface-3); border: 1px solid var(--line-2);
+         color: var(--ink-2); padding: 4px 10px; border-radius: 999px; }
+  .act.undo { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .typing { align-self: flex-start; display: flex; gap: 4px; padding: 14px 15px; background: var(--surface);
+            border: 1px solid var(--line); border-radius: 16px; border-bottom-left-radius: 5px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); animation: blink 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .18s; }
+  .typing i:nth-child(3) { animation-delay: .36s; }
+  @keyframes blink { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .typing i { animation: none; opacity: .5; } }
+  .chat-bar { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: flex-end; padding: 10px 0 4px;
+              background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px); }
+  .chat-bar textarea.t { min-height: 46px; max-height: 140px; resize: none; line-height: 1.5; padding: 12px; }
+  .chat-bar .send { width: 46px; height: 46px; flex: none; padding: 0; justify-content: center; font-size: 17px; }
+  .chat-sugg { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 4px; }
+  .chat-sugg button { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2);
+                      font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; transition: .15s; }
+  .chat-sugg button:hover { border-color: var(--accent); color: var(--accent); }
+  .keycard { text-align: center; }
+  .keycard .em { font-size: 34px; }
+  .keycard p { margin: 8px 0 0; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
+  .keycard a { color: var(--accent); font-weight: 600; }
+
   /* empty state */
   .empty { text-align: center; padding: 34px 20px; color: var(--ink-2); }
   .empty .em { font-size: 34px; }
@@ -354,6 +385,7 @@
     <button class="tab" role="tab" data-view="gastos"><span class="ic">💰</span>Gastos</button>
     <button class="tab" role="tab" data-view="calc"><span class="ic">🧮</span>Calculadora</button>
     <button class="tab" role="tab" data-view="notas"><span class="ic">📝</span>Anotações</button>
+    <button class="tab" role="tab" data-view="chat"><span class="ic">✨</span>Assistente</button>
   </nav>
 
   <main>
@@ -363,6 +395,7 @@
     <section class="view" id="view-gastos" role="tabpanel"></section>
     <section class="view" id="view-calc" role="tabpanel"></section>
     <section class="view" id="view-notas" role="tabpanel"></section>
+    <section class="view" id="view-chat" role="tabpanel"></section>
   </main>
 </div>
 
@@ -594,6 +627,7 @@
     else if (v==="gastos") renderGastos();
     else if (v==="calc") renderCalc();
     else if (v==="notas") renderNotas();
+    else if (v==="chat") renderChat();
   }
   function renderAll(){ renderView(current); }
 
@@ -1099,6 +1133,442 @@
       else { n.text = txt.value.trim(); n.date = now + " (editado)"; }
       save(); renderNotas();
     }, isNew?"Salvar":"Atualizar");
+  }
+
+  // ============ ASSISTENTE (IA) ============
+  // Chamada direta à API da Anthropic a partir do navegador. A chave fica só neste
+  // aparelho (localStorage) — nunca vai pro repositório. Ver README.
+  const AI_MODEL = "claude-haiku-4-5";
+  const AI_KEY_STORE = "festa1ano.aikey";
+  const AI_LOG_STORE = "festa1ano.chat";
+  const AI_MAX_HOPS = 6;   // no máximo 6 idas à API por pergunta (evita loop infinito de ferramentas)
+  const AI_MAX_MSGS = 24;  // histórico enviado a cada pergunta
+
+  const aiKey = () => localStorage.getItem(AI_KEY_STORE) || "";
+  let chatLog = [];
+  try { chatLog = JSON.parse(localStorage.getItem(AI_LOG_STORE) || "[]"); } catch { chatLog = []; }
+  const saveChat = () => { try { localStorage.setItem(AI_LOG_STORE, JSON.stringify(chatLog.slice(-40))); } catch {} };
+  let chatBusy = false, undoSnap = null;
+
+  // ---- ferramentas que a IA pode usar ----
+  const num = (v, d=0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+  const findBy = (arr, id, what) => {
+    const it = arr.find(x => x.id === id);
+    if (!it) throw new Error(`Não encontrei ${what} com id "${id}".`);
+    return it;
+  };
+  const STATUS_OK = ["pending","confirmed","declined"];
+
+  const AI_RUN = {
+    adicionar_convidado(i){
+      if (!String(i.name||"").trim()) throw new Error("Preciso do nome do convidado.");
+      const g = { id:uid(), name:String(i.name).trim(), adults:Math.max(0,num(i.adults,1)),
+        children:Math.max(0,num(i.children,0)), phone:String(i.phone||"").trim(),
+        status: STATUS_OK.includes(i.status) ? i.status : "pending" };
+      S.guests.push(g);
+      return { ok:true, id:g.id };
+    },
+    atualizar_convidado(i){
+      const g = findBy(S.guests, i.id, "convidado");
+      if (i.name != null) g.name = String(i.name).trim() || g.name;
+      if (i.adults != null) g.adults = Math.max(0, num(i.adults, g.adults));
+      if (i.children != null) g.children = Math.max(0, num(i.children, g.children));
+      if (i.phone != null) g.phone = String(i.phone).trim();
+      if (i.status != null && STATUS_OK.includes(i.status)) g.status = i.status;
+      return { ok:true, convidado:g };
+    },
+    remover_convidado(i){
+      const g = findBy(S.guests, i.id, "convidado");
+      S.guests = S.guests.filter(x => x !== g);
+      return { ok:true, removido:g.name };
+    },
+    adicionar_tarefa(i){
+      if (!String(i.text||"").trim()) throw new Error("Preciso do texto da tarefa.");
+      const c = { id:uid(), text:String(i.text).trim(), done:!!i.done };
+      S.checklist.push(c);
+      return { ok:true, id:c.id };
+    },
+    atualizar_tarefa(i){
+      const c = findBy(S.checklist, i.id, "tarefa");
+      if (i.text != null) c.text = String(i.text).trim() || c.text;
+      if (i.done != null) c.done = !!i.done;
+      return { ok:true, tarefa:c };
+    },
+    remover_tarefa(i){
+      const c = findBy(S.checklist, i.id, "tarefa");
+      S.checklist = S.checklist.filter(x => x !== c);
+      return { ok:true, removida:c.text };
+    },
+    adicionar_gasto(i){
+      if (!String(i.description||"").trim()) throw new Error("Preciso da descrição do gasto.");
+      const amount = Math.max(0, num(i.amount, 0));
+      const e = { id:uid(), description:String(i.description).trim(), amount,
+        amountPaid: Math.min(amount, Math.max(0, num(i.amountPaid, 0))),
+        category: EXP_CATS.includes(i.category) ? i.category : "Outros" };
+      S.expenses.push(e);
+      return { ok:true, id:e.id };
+    },
+    atualizar_gasto(i){
+      const e = findBy(S.expenses, i.id, "gasto");
+      if (i.description != null) e.description = String(i.description).trim() || e.description;
+      if (i.amount != null) e.amount = Math.max(0, num(i.amount, e.amount));
+      if (i.amountPaid != null) e.amountPaid = Math.max(0, num(i.amountPaid, e.amountPaid));
+      if (i.category != null && EXP_CATS.includes(i.category)) e.category = i.category;
+      e.amountPaid = Math.min(e.amountPaid, e.amount);
+      return { ok:true, gasto:{ ...e, falta: dueOf(e) } };
+    },
+    remover_gasto(i){
+      const e = findBy(S.expenses, i.id, "gasto");
+      S.expenses = S.expenses.filter(x => x !== e);
+      return { ok:true, removido:e.description };
+    },
+    adicionar_nota(i){
+      if (!String(i.text||"").trim()) throw new Error("Preciso do texto da anotação.");
+      const n = { id:uid(), text:String(i.text).trim(),
+        date: new Date().toLocaleDateString("pt-BR", { day:"2-digit", month:"short", year:"numeric" }) };
+      S.notes.push(n);
+      return { ok:true, id:n.id };
+    },
+    remover_nota(i){
+      const n = findBy(S.notes, i.id, "anotação");
+      S.notes = S.notes.filter(x => x !== n);
+      return { ok:true };
+    },
+    atualizar_festa(i){
+      if (i.babyName != null) S.settings.babyName = String(i.babyName).trim();
+      if (i.partyDate != null) {
+        const d = String(i.partyDate).trim();
+        if (d && !/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error("A data precisa estar no formato AAAA-MM-DD.");
+        S.settings.partyDate = d;
+      }
+      if (i.venue != null) S.settings.venue = String(i.venue).trim();
+      if (i.budget != null) S.settings.budget = Math.max(0, num(i.budget, S.settings.budget));
+      return { ok:true, festa:S.settings };
+    },
+  };
+
+  const strP = d => ({ type:"string", description:d });
+  const intP = d => ({ type:"integer", description:d });
+  const numP = d => ({ type:"number", description:d });
+  const tool = (name, description, properties, required=[]) =>
+    ({ name, description, input_schema:{ type:"object", properties, required } });
+
+  const AI_TOOLS = [
+    tool("adicionar_convidado", "Adiciona uma pessoa ou família à lista de convidados.", {
+      name: strP("Nome da pessoa ou família. Ex.: 'Vovó Ana', 'Família Silva'."),
+      adults: intP("Quantos adultos vêm. Padrão 1."),
+      children: intP("Quantas crianças vêm. Padrão 0."),
+      phone: strP("Telefone, se a pessoa disser."),
+      status: { type:"string", enum:STATUS_OK, description:"pending = ainda não respondeu, confirmed = confirmou, declined = não vai. Padrão pending." },
+    }, ["name"]),
+    tool("atualizar_convidado", "Altera um convidado que já existe. Envie só os campos que mudam.", {
+      id: strP("id do convidado, exatamente como aparece nos dados."),
+      name: strP(""), adults: intP(""), children: intP(""), phone: strP(""),
+      status: { type:"string", enum:STATUS_OK },
+    }, ["id"]),
+    tool("remover_convidado", "Remove um convidado da lista.", { id: strP("id do convidado.") }, ["id"]),
+
+    tool("adicionar_tarefa", "Adiciona uma tarefa ao checklist dos preparativos.", {
+      text: strP("O que precisa ser feito. Ex.: 'Encomendar o bolo'."),
+      done: { type:"boolean", description:"Já está feita? Padrão false." },
+    }, ["text"]),
+    tool("atualizar_tarefa", "Marca uma tarefa como feita/não feita ou muda o texto dela.", {
+      id: strP("id da tarefa."), text: strP(""), done: { type:"boolean" },
+    }, ["id"]),
+    tool("remover_tarefa", "Remove uma tarefa do checklist.", { id: strP("id da tarefa.") }, ["id"]),
+
+    tool("adicionar_gasto", "Lança um gasto da festa.", {
+      description: strP("Do que é o gasto. Ex.: 'Bolo da confeitaria'."),
+      amount: numP("Valor total em reais, só o número. Ex.: 350.5"),
+      amountPaid: numP("Quanto já foi pago em reais. 0 se ainda não pagou, igual ao total se já quitou."),
+      category: { type:"string", enum:EXP_CATS, description:"Categoria do gasto." },
+    }, ["description","amount"]),
+    tool("atualizar_gasto", "Altera um gasto existente — inclusive para registrar um pagamento (amountPaid).", {
+      id: strP("id do gasto."), description: strP(""), amount: numP(""), amountPaid: numP("Total já pago em reais (não é o valor da parcela, é o acumulado)."),
+      category: { type:"string", enum:EXP_CATS },
+    }, ["id"]),
+    tool("remover_gasto", "Remove um gasto.", { id: strP("id do gasto.") }, ["id"]),
+
+    tool("adicionar_nota", "Salva uma anotação (ideia, contato de fornecedor, lembrete).", {
+      text: strP("O texto da anotação."),
+    }, ["text"]),
+    tool("remover_nota", "Remove uma anotação.", { id: strP("id da anotação.") }, ["id"]),
+
+    tool("atualizar_festa", "Muda os detalhes da festa. Envie só o que mudar.", {
+      babyName: strP("Nome da aniversariante."),
+      partyDate: strP("Data da festa no formato AAAA-MM-DD."),
+      venue: strP("Local da festa."),
+      budget: numP("Orçamento total em reais."),
+    }),
+  ];
+
+  const ACT_LBL = {
+    adicionar_convidado: i => `👗 Adicionou ${i.name}`,
+    atualizar_convidado: () => "👗 Atualizou um convidado",
+    remover_convidado:   () => "🗑 Removeu um convidado",
+    adicionar_tarefa:    i => `✅ Nova tarefa: ${i.text}`,
+    atualizar_tarefa:    () => "✅ Atualizou uma tarefa",
+    remover_tarefa:      () => "🗑 Removeu uma tarefa",
+    adicionar_gasto:     i => `💰 Lançou ${i.description}`,
+    atualizar_gasto:     () => "💰 Atualizou um gasto",
+    remover_gasto:       () => "🗑 Removeu um gasto",
+    adicionar_nota:      () => "📝 Salvou uma anotação",
+    remover_nota:        () => "🗑 Removeu uma anotação",
+    atualizar_festa:     () => "⚙ Atualizou os detalhes da festa",
+  };
+
+  // ---- contexto enviado à IA ----
+  function aiSystem(){
+    const t = totals(), dl = daysLeft(), rates = S.calc.rates || {};
+    const snap = {
+      festa: { nome:S.settings.babyName||null, data:S.settings.partyDate||null,
+               local:S.settings.venue||null, orcamento:S.settings.budget||null },
+      resumo: {
+        pessoas_confirmadas: t.peopleConf, pessoas_pendentes: t.peoplePend,
+        total_gasto: t.spentTotal, ja_pago: t.spentPaid, falta_pagar: t.spentPend,
+        sobra_do_orcamento: S.settings.budget ? S.settings.budget - t.spentTotal : null,
+        tarefas_feitas: `${t.checkDone} de ${t.checkTotal}`,
+        pessoas_usadas_na_calculadora: expectedPeople(),
+      },
+      convidados: S.guests.map(g => ({ id:g.id, nome:g.name, adultos:g.adults, criancas:g.children,
+        telefone:g.phone||null, status:g.status })),
+      checklist: S.checklist.map(c => ({ id:c.id, tarefa:c.text, feita:c.done })),
+      gastos: S.expenses.map(e => ({ id:e.id, descricao:e.description, categoria:e.category,
+        valor_total:e.amount, ja_pago:paidOf(e), falta_pagar:dueOf(e) })),
+      anotacoes: S.notes.map(n => ({ id:n.id, texto:n.text, data:n.date })),
+      quantidades_por_pessoa: CALC_ITEMS.map(i => ({ item:i.name, por_pessoa:(rates[i.id] ?? i.rate), unidade:i.unit })),
+    };
+    return [
+      "Você é a assistente de organização de uma festa de 1 aninho, dentro de um app que a mãe da aniversariante usa no celular.",
+      "Fale português do Brasil, em tom leve e carinhoso, e vá direto ao ponto: 2 a 4 frases no máximo.",
+      "Não use markdown, nem tabelas, nem listas com asteriscos ou hífens — só texto corrido com quebras de linha.",
+      "Valores sempre em reais, escritos como R$ 1.234,56.",
+      "",
+      "Você tem ferramentas para alterar os dados da festa. Use-as sempre que ela pedir para adicionar, mudar, marcar ou remover algo — não peça confirmação, faça e depois confirme em uma frase curta o que foi feito (ela pode desfazer no app).",
+      "Para alterar ou remover, use o id exato que aparece nos dados abaixo. Nunca invente um id.",
+      "Se ela pedir várias coisas de uma vez, chame várias ferramentas.",
+      "Nunca invente informação: se não estiver nos dados abaixo, diga que não está anotado e ofereça anotar.",
+      "",
+      `Hoje é ${new Date().toLocaleDateString("pt-BR", { dateStyle:"full" })}.`,
+      dl == null ? "A data da festa ainda não foi definida."
+        : dl > 0 ? `Faltam ${dl} dias para a festa.`
+        : dl === 0 ? "A festa é hoje!" : `A festa já aconteceu há ${-dl} dias.`,
+      "",
+      "DADOS ATUAIS DA FESTA (JSON):",
+      JSON.stringify(snap, null, 1),
+    ].join("\n");
+  }
+
+  // Histórico enviado à API. Só entram turnos válidos (user/assistant) — os avisos
+  // de erro são só de tela. O corte começa sempre numa pergunta dela, pra não separar
+  // um tool_use do seu tool_result (a API rejeita o par quebrado).
+  function aiHistory(){
+    const msgs = chatLog.filter(m => m.role === "user" || m.role === "assistant");
+    if (msgs.length <= AI_MAX_MSGS) return msgs;
+    let i = msgs.length - AI_MAX_MSGS;
+    while (i < msgs.length - 1 && !(msgs[i].role === "user" && typeof msgs[i].content === "string")) i++;
+    return msgs.slice(i);
+  }
+
+  async function aiCall(){
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": aiKey(),
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        max_tokens: 1500,
+        system: aiSystem(),
+        tools: AI_TOOLS,
+        messages: aiHistory(),
+      }),
+    });
+    if (!r.ok) {
+      let detail = "";
+      try { detail = (await r.json())?.error?.message || ""; } catch {}
+      const err = new Error(detail); err.status = r.status; throw err;
+    }
+    return r.json();
+  }
+
+  function aiErrorText(e){
+    if (e.status === 401 || e.status === 403) return "Chave de API inválida ou sem permissão. Toque em 🔑 lá em cima pra corrigir.";
+    if (e.status === 429) return "Muitas perguntas seguidas. Espera uns segundos e tenta de novo. 🙂";
+    if (e.status >= 500) return "O serviço da IA está instável agora. Tenta de novo daqui a pouco.";
+    if (e.status === 400 && /credit|balance/i.test(e.message)) return "A conta da API está sem créditos. Adicione créditos no console da Anthropic.";
+    if (e.status) return `Deu erro na IA (${e.status}). ${e.message || ""}`.trim();
+    return "Não consegui conectar. Verifica a internet e tenta de novo.";
+  }
+
+  async function aiSend(text){
+    text = text.trim();
+    if (!text || chatBusy) return;
+    if (!navigator.onLine) {
+      chatLog.push({ role:"__pergunta", content:text });
+      chatLog.push({ role:"__erro", content:"Você está sem internet. O assistente precisa de conexão — o resto do app continua funcionando normalmente." });
+      saveChat(); paintChat(); return;
+    }
+
+    const mark = chatLog.length;   // ponto de retorno: um turno que falhou não pode ficar no histórico
+    const before = JSON.stringify(S);
+    let mutated = false, done = false, problema = null;
+
+    chatLog.push({ role:"user", content:text });
+    chatBusy = true;
+    saveChat(); paintChat();
+
+    try {
+      for (let hop = 0; hop < AI_MAX_HOPS && !done; hop++) {
+        const res = await aiCall();
+        if (!res.content || !res.content.length) { problema = "A IA respondeu vazio. Tenta perguntar de novo."; break; }
+        chatLog.push({ role:"assistant", content:res.content });
+        if (res.stop_reason !== "tool_use") { done = true; break; }
+
+        const results = [];
+        for (const b of res.content) {
+          if (b.type !== "tool_use") continue;
+          const run = AI_RUN[b.name];
+          if (!run) { results.push({ type:"tool_result", tool_use_id:b.id, is_error:true, content:`Ferramenta "${b.name}" não existe.` }); continue; }
+          try {
+            const out = run(b.input || {});
+            mutated = true;
+            results.push({ type:"tool_result", tool_use_id:b.id, content:JSON.stringify(out) });
+          } catch (err) {
+            results.push({ type:"tool_result", tool_use_id:b.id, is_error:true, content:String(err.message || err) });
+          }
+        }
+        if (!results.length) { done = true; break; }
+        chatLog.push({ role:"user", content:results });
+        saveChat(); paintChat();
+      }
+      if (!done && !problema) problema = "Fiz o que deu, mas a conversa ficou longa demais pra terminar. Confere no app e me pergunta de novo se faltou algo.";
+    } catch (e) {
+      problema = aiErrorText(e);
+    }
+
+    if (problema) {
+      // Descarta o turno quebrado do histórico (senão a próxima pergunta vai com
+      // duas mensagens dela seguidas, e a API rejeita) e deixa só o registro na tela.
+      chatLog.length = mark;
+      chatLog.push({ role:"__pergunta", content:text });
+      chatLog.push({ role:"__erro", content:problema });
+    }
+    if (mutated) { undoSnap = before; save(); renderHeader(); }
+    chatBusy = false;
+    saveChat(); paintChat();
+  }
+
+  // ---- UI ----
+  let chatBox = null, chatInput = null;
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+  const mdLite = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+
+  function askKey(){
+    const inp = el("input", { class:"t", type:"password", value:aiKey(), placeholder:"sk-ant-api03-...", autocomplete:"off", spellcheck:"false" });
+    openModal("Chave da IA", el("div", { class:"stack" }, [
+      el("p", { class:"hint", style:"line-height:1.6", html:
+        'Crie uma chave em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> e cole aqui. '+
+        'Ela fica guardada <b>só neste aparelho</b> e é usada apenas para falar com o assistente.' }),
+      field("Chave de API", inp),
+    ]), () => {
+      const v = inp.value.trim();
+      if (v) localStorage.setItem(AI_KEY_STORE, v); else localStorage.removeItem(AI_KEY_STORE);
+      renderChat();
+    });
+  }
+
+  function renderChat(){
+    const c = $("#view-chat"); c.innerHTML = "";
+    chatBox = null; chatInput = null;
+
+    if (!aiKey()) {
+      viewHead(c, "Assistente", null);
+      c.append(el("div", { class:"card keycard" }, [
+        el("div", { class:"em" }, "✨"),
+        el("p", { html:"Pergunte qualquer coisa sobre a festa — e peça pra anotar convidados, gastos e tarefas por você.<br><br>Pra começar, é preciso uma chave de API da Anthropic." }),
+        el("div", { style:"margin-top:16px" }, el("button", { class:"btn", onclick:askKey }, "🔑 Configurar chave")),
+      ]));
+      return;
+    }
+
+    viewHead(c, "Assistente", null, el("div", { style:"display:flex;gap:6px" }, [
+      chatLog.length ? el("button", { class:"btn ghost sm", title:"Limpar conversa", onclick:()=>{
+        if (!confirm("Apagar a conversa com o assistente? Os dados da festa não são afetados.")) return;
+        chatLog = []; undoSnap = null; saveChat(); renderChat();
+      } }, "🧹") : null,
+      el("button", { class:"btn ghost sm", title:"Trocar a chave da IA", onclick:askKey }, "🔑"),
+    ]));
+
+    chatBox = el("div", { class:"chat-log" });
+    c.append(chatBox);
+
+    const ta = el("textarea", { class:"t", rows:1, placeholder:"Pergunte ou peça algo…", "aria-label":"Mensagem para o assistente" });
+    chatInput = ta;
+    const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 140) + "px"; };
+    ta.addEventListener("input", grow);
+    ta.addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey && innerWidth >= 560) { e.preventDefault(); fire(); }
+    });
+    const btn = el("button", { class:"btn send", title:"Enviar", "aria-label":"Enviar", onclick:()=>fire() }, "➤");
+    function fire(){
+      if (chatBusy) return;
+      const v = ta.value;
+      ta.value = ""; grow();
+      aiSend(v);
+    }
+    c.append(el("div", { class:"chat-bar" }, [ ta, btn ]));
+    c.append(el("p", { class:"hint", style:"text-align:center;margin-top:8px" },
+      "Precisa de internet. Os dados da festa são enviados à IA para responder."));
+
+    paintChat();
+  }
+
+  function paintChat(){
+    if (!chatBox) return;
+    chatBox.innerHTML = "";
+
+    if (!chatLog.length) {
+      chatBox.append(el("div", { class:"card keycard", style:"margin-bottom:6px" }, [
+        el("div", { class:"em" }, "✨"),
+        el("p", { html:"Oi! Posso responder sobre a festa e anotar as coisas pra você.<br>Experimente:" }),
+      ]));
+      const sug = el("div", { class:"chat-sugg" });
+      ["Quanto já gastei até agora?", "Quem ainda não confirmou?", "O que ainda falta fazer?",
+       "Quantos salgadinhos preciso comprar?", "Anota que a vovó Ana vem com 2 adultos"]
+        .forEach(q => sug.append(el("button", { onclick:()=>aiSend(q) }, q)));
+      chatBox.append(sug);
+    }
+
+    chatLog.forEach(m => {
+      if (m.role === "__erro") { chatBox.append(el("div", { class:"msg err" }, m.content)); return; }
+      if (typeof m.content === "string") {
+        if (m.role === "user" || m.role === "__pergunta") chatBox.append(el("div", { class:"msg me" }, m.content));
+        return;
+      }
+      if (m.role !== "assistant") return; // tool_results não aparecem na conversa
+      const acts = [];
+      m.content.forEach(b => {
+        if (b.type === "text" && b.text.trim())
+          chatBox.append(el("div", { class:"msg ai", html:mdLite(b.text.trim()) }));
+        else if (b.type === "tool_use")
+          acts.push((ACT_LBL[b.name] || (()=>"✔ " + b.name))(b.input || {}));
+      });
+      if (acts.length) chatBox.append(el("div", { class:"acts" }, acts.map(a => el("span", { class:"act" }, a))));
+    });
+
+    if (chatBusy) chatBox.append(el("div", { class:"typing" }, [el("i"), el("i"), el("i")]));
+    else if (undoSnap) chatBox.append(el("div", { class:"acts" },
+      el("button", { class:"act undo", onclick:()=>{
+        S = JSON.parse(undoSnap); undoSnap = null;
+        save(); renderHeader(); paintChat();
+      } }, "↩ Desfazer as alterações")));
+
+    if (current === "chat") requestAnimationFrame(() => scrollTo({ top: document.body.scrollHeight }));
   }
 
   // ===== boot =====
