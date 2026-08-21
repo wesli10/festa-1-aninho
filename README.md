@@ -15,16 +15,21 @@ A aba **Assistente** responde perguntas sobre a festa ("quanto já gastei?",
 gastos, tarefas e anotações — a partir de um pedido em texto. Toda alteração
 aparece na conversa e pode ser desfeita com um toque.
 
-Para usar, é preciso uma chave de API da Anthropic
-([console.anthropic.com](https://console.anthropic.com/settings/keys)):
+Para usar, é preciso uma chave de API da OpenAI
+([platform.openai.com/api-keys](https://platform.openai.com/api-keys)):
 abra a aba Assistente e toque em **🔑 Configurar chave**.
 
 - A chave fica guardada **só naquele aparelho** (localStorage) — ela nunca entra
-  neste repositório e não é enviada a mais ninguém além da API da Anthropic.
-- Modelo usado: `claude-haiku-4-5`. Cada pergunta custa em torno de R$ 0,04.
+  neste repositório e não é enviada a mais ninguém além da API da OpenAI.
+- Modelo: `gpt-5.6-luna` pela Responses API, com `reasoning.effort` em `none`.
+  Cada pergunta custa menos de 1 centavo. Se ela errar comandos, suba o
+  `AI_EFFORT` no código para `"low"`.
+- `store: false` — a conversa não fica guardada nos servidores da OpenAI.
 - O assistente precisa de internet; o resto do app continua funcionando offline.
 - Para responder, os dados da festa (nomes, valores, tarefas) são enviados à API
-  da Anthropic a cada pergunta.
+  da OpenAI a cada pergunta.
 - Se o app for publicado num endereço público, qualquer pessoa que abrir o site
   usa a **própria** chave — a sua continua só no seu aparelho. Para uma chave
   compartilhada entre várias pessoas, o certo seria um proxy no servidor.
+- Vale definir um limite de gasto mensal em
+  [platform.openai.com](https://platform.openai.com/settings/organization/limits).

@@ -1136,18 +1136,25 @@
   }
 
   // ============ ASSISTENTE (IA) ============
-  // Chamada direta à API da Anthropic a partir do navegador. A chave fica só neste
-  // aparelho (localStorage) — nunca vai pro repositório. Ver README.
-  const AI_MODEL = "claude-haiku-4-5";
-  const AI_KEY_STORE = "festa1ano.aikey";
-  const AI_LOG_STORE = "festa1ano.chat";
-  const AI_MAX_HOPS = 6;   // no máximo 6 idas à API por pergunta (evita loop infinito de ferramentas)
-  const AI_MAX_MSGS = 24;  // histórico enviado a cada pergunta
+  // Chamada direta à Responses API da OpenAI a partir do navegador (a API libera
+  // CORS, inclusive para file://). A chave fica só neste aparelho — ver README.
+  const AI_URL = "https://api.openai.com/v1/responses";
+  const AI_MODEL = "gpt-5.6-luna";
+  const AI_EFFORT = "none";   // reasoning: none|low|medium|high — suba pra "low" se ela errar comandos
+  const AI_KEY_STORE = "festa1ano.openaikey";
+  const AI_LOG_STORE = "festa1ano.chat2";
+  const AI_MAX_HOPS = 6;      // no máximo 6 idas à API por pergunta (evita loop infinito de ferramentas)
+  const AI_MAX_ITEMS = 30;    // itens de histórico enviados a cada pergunta
+
+  // Limpeza da versão anterior (Anthropic): a chave antiga não serve aqui e não
+  // deve ficar guardada, e o histórico tinha outro formato.
+  ["festa1ano.aikey", "festa1ano.chat"].forEach(k => { try { localStorage.removeItem(k); } catch {} });
 
   const aiKey = () => localStorage.getItem(AI_KEY_STORE) || "";
   let chatLog = [];
   try { chatLog = JSON.parse(localStorage.getItem(AI_LOG_STORE) || "[]"); } catch { chatLog = []; }
-  const saveChat = () => { try { localStorage.setItem(AI_LOG_STORE, JSON.stringify(chatLog.slice(-40))); } catch {} };
+  if (!Array.isArray(chatLog)) chatLog = [];
+  const saveChat = () => { try { localStorage.setItem(AI_LOG_STORE, JSON.stringify(chatLog.slice(-60))); } catch {} };
   let chatBusy = false, undoSnap = null;
 
   // ---- ferramentas que a IA pode usar ----
@@ -1250,8 +1257,9 @@
   const strP = d => ({ type:"string", description:d });
   const intP = d => ({ type:"integer", description:d });
   const numP = d => ({ type:"number", description:d });
+  // Formato de function tool da Responses API: campos no topo, não aninhados em "function".
   const tool = (name, description, properties, required=[]) =>
-    ({ name, description, input_schema:{ type:"object", properties, required } });
+    ({ type:"function", name, description, parameters:{ type:"object", properties, required } });
 
   const AI_TOOLS = [
     tool("adicionar_convidado", "Adiciona uma pessoa ou família à lista de convidados.", {
@@ -1263,8 +1271,9 @@
     }, ["name"]),
     tool("atualizar_convidado", "Altera um convidado que já existe. Envie só os campos que mudam.", {
       id: strP("id do convidado, exatamente como aparece nos dados."),
-      name: strP(""), adults: intP(""), children: intP(""), phone: strP(""),
-      status: { type:"string", enum:STATUS_OK },
+      name: strP("Novo nome."), adults: intP("Novo número de adultos."),
+      children: intP("Novo número de crianças."), phone: strP("Novo telefone."),
+      status: { type:"string", enum:STATUS_OK, description:"Nova presença." },
     }, ["id"]),
     tool("remover_convidado", "Remove um convidado da lista.", { id: strP("id do convidado.") }, ["id"]),
 
@@ -1273,7 +1282,7 @@
       done: { type:"boolean", description:"Já está feita? Padrão false." },
     }, ["text"]),
     tool("atualizar_tarefa", "Marca uma tarefa como feita/não feita ou muda o texto dela.", {
-      id: strP("id da tarefa."), text: strP(""), done: { type:"boolean" },
+      id: strP("id da tarefa."), text: strP("Novo texto."), done: { type:"boolean", description:"Feita ou não." },
     }, ["id"]),
     tool("remover_tarefa", "Remove uma tarefa do checklist.", { id: strP("id da tarefa.") }, ["id"]),
 
@@ -1284,8 +1293,9 @@
       category: { type:"string", enum:EXP_CATS, description:"Categoria do gasto." },
     }, ["description","amount"]),
     tool("atualizar_gasto", "Altera um gasto existente — inclusive para registrar um pagamento (amountPaid).", {
-      id: strP("id do gasto."), description: strP(""), amount: numP(""), amountPaid: numP("Total já pago em reais (não é o valor da parcela, é o acumulado)."),
-      category: { type:"string", enum:EXP_CATS },
+      id: strP("id do gasto."), description: strP("Nova descrição."), amount: numP("Novo valor total em reais."),
+      amountPaid: numP("Total já pago em reais (não é o valor da parcela, é o acumulado)."),
+      category: { type:"string", enum:EXP_CATS, description:"Nova categoria." },
     }, ["id"]),
     tool("remover_gasto", "Remove um gasto.", { id: strP("id do gasto.") }, ["id"]),
 
@@ -1359,47 +1369,48 @@
     ].join("\n");
   }
 
-  // Histórico enviado à API. Só entram turnos válidos (user/assistant) — os avisos
-  // de erro são só de tela. O corte começa sempre numa pergunta dela, pra não separar
-  // um tool_use do seu tool_result (a API rejeita o par quebrado).
+  const isPergunta = it => it.type === "message" && it.role === "user";
+
+  // Histórico enviado à API. Só entram itens que a API entende — os avisos de erro
+  // são só de tela. O corte começa sempre numa pergunta dela, pra não deixar um
+  // function_call_output órfão (sem o function_call que o originou).
   function aiHistory(){
-    const msgs = chatLog.filter(m => m.role === "user" || m.role === "assistant");
-    if (msgs.length <= AI_MAX_MSGS) return msgs;
-    let i = msgs.length - AI_MAX_MSGS;
-    while (i < msgs.length - 1 && !(msgs[i].role === "user" && typeof msgs[i].content === "string")) i++;
-    return msgs.slice(i);
+    const items = chatLog.filter(it => !String(it.type).startsWith("__"));
+    if (items.length <= AI_MAX_ITEMS) return items;
+    let i = items.length - AI_MAX_ITEMS;
+    while (i < items.length - 1 && !isPergunta(items[i])) i++;
+    return items.slice(i);
   }
 
   async function aiCall(){
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const r = await fetch(AI_URL, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": aiKey(),
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
+      headers: { "content-type": "application/json", "authorization": "Bearer " + aiKey() },
       body: JSON.stringify({
         model: AI_MODEL,
-        max_tokens: 1500,
-        system: aiSystem(),
+        instructions: aiSystem(),
+        input: aiHistory(),
         tools: AI_TOOLS,
-        messages: aiHistory(),
+        reasoning: { effort: AI_EFFORT },
+        max_output_tokens: 2000,
+        store: false,          // a conversa não fica guardada no servidor da OpenAI
       }),
     });
     if (!r.ok) {
-      let detail = "";
-      try { detail = (await r.json())?.error?.message || ""; } catch {}
-      const err = new Error(detail); err.status = r.status; throw err;
+      let detail = "", code = "";
+      try { const j = await r.json(); detail = j?.error?.message || ""; code = j?.error?.code || j?.error?.type || ""; } catch {}
+      const err = new Error(detail); err.status = r.status; err.code = code; throw err;
     }
     return r.json();
   }
 
   function aiErrorText(e){
-    if (e.status === 401 || e.status === 403) return "Chave de API inválida ou sem permissão. Toque em 🔑 lá em cima pra corrigir.";
+    if (e.status === 401) return "Chave da OpenAI inválida ou expirada. Toque em 🔑 lá em cima pra corrigir.";
+    if (e.status === 403) return "Essa chave não tem permissão pra usar este modelo.";
+    if (e.code === "insufficient_quota" || /quota|billing/i.test(e.message||""))
+      return "A conta da OpenAI está sem créditos. Adicione créditos em platform.openai.com.";
     if (e.status === 429) return "Muitas perguntas seguidas. Espera uns segundos e tenta de novo. 🙂";
-    if (e.status >= 500) return "O serviço da IA está instável agora. Tenta de novo daqui a pouco.";
-    if (e.status === 400 && /credit|balance/i.test(e.message)) return "A conta da API está sem créditos. Adicione créditos no console da Anthropic.";
+    if (e.status >= 500) return "O serviço da OpenAI está instável agora. Tenta de novo daqui a pouco.";
     if (e.status) return `Deu erro na IA (${e.status}). ${e.message || ""}`.trim();
     return "Não consegui conectar. Verifica a internet e tenta de novo.";
   }
@@ -1408,8 +1419,8 @@
     text = text.trim();
     if (!text || chatBusy) return;
     if (!navigator.onLine) {
-      chatLog.push({ role:"__pergunta", content:text });
-      chatLog.push({ role:"__erro", content:"Você está sem internet. O assistente precisa de conexão — o resto do app continua funcionando normalmente." });
+      chatLog.push({ type:"__pergunta", text });
+      chatLog.push({ type:"__erro", text:"Você está sem internet. O assistente precisa de conexão — o resto do app continua funcionando normalmente." });
       saveChat(); paintChat(); return;
     }
 
@@ -1417,32 +1428,40 @@
     const before = JSON.stringify(S);
     let mutated = false, done = false, problema = null;
 
-    chatLog.push({ role:"user", content:text });
+    chatLog.push({ type:"message", role:"user", content:text });
     chatBusy = true;
     saveChat(); paintChat();
 
     try {
       for (let hop = 0; hop < AI_MAX_HOPS && !done; hop++) {
         const res = await aiCall();
-        if (!res.content || !res.content.length) { problema = "A IA respondeu vazio. Tenta perguntar de novo."; break; }
-        chatLog.push({ role:"assistant", content:res.content });
-        if (res.stop_reason !== "tool_use") { done = true; break; }
+        const out = Array.isArray(res.output) ? res.output : [];
+        if (!out.length) { problema = "A IA respondeu vazio. Tenta perguntar de novo."; break; }
+        // Devolve os itens da resposta ao histórico exatamente como vieram — a API
+        // precisa do function_call original pra casar com o function_call_output.
+        out.forEach(it => chatLog.push(it));
 
-        const results = [];
-        for (const b of res.content) {
-          if (b.type !== "tool_use") continue;
-          const run = AI_RUN[b.name];
-          if (!run) { results.push({ type:"tool_result", tool_use_id:b.id, is_error:true, content:`Ferramenta "${b.name}" não existe.` }); continue; }
-          try {
-            const out = run(b.input || {});
-            mutated = true;
-            results.push({ type:"tool_result", tool_use_id:b.id, content:JSON.stringify(out) });
-          } catch (err) {
-            results.push({ type:"tool_result", tool_use_id:b.id, is_error:true, content:String(err.message || err) });
-          }
+        const chamadas = out.filter(it => it.type === "function_call");
+        if (!chamadas.length) {
+          if (res.status === "incomplete")
+            problema = "A resposta ficou longa demais e foi cortada. Tenta perguntar de um jeito mais simples.";
+          done = true;
+          break;
         }
-        if (!results.length) { done = true; break; }
-        chatLog.push({ role:"user", content:results });
+
+        for (const fc of chamadas) {
+          let saida;
+          try {
+            const args = fc.arguments ? JSON.parse(fc.arguments) : {};
+            const run = AI_RUN[fc.name];
+            if (!run) throw new Error(`Ferramenta "${fc.name}" não existe.`);
+            saida = run(args);
+            mutated = true;
+          } catch (err) {
+            saida = { erro: String(err.message || err) };
+          }
+          chatLog.push({ type:"function_call_output", call_id:fc.call_id, output:JSON.stringify(saida) });
+        }
         saveChat(); paintChat();
       }
       if (!done && !problema) problema = "Fiz o que deu, mas a conversa ficou longa demais pra terminar. Confere no app e me pergunta de novo se faltou algo.";
@@ -1451,11 +1470,12 @@
     }
 
     if (problema) {
-      // Descarta o turno quebrado do histórico (senão a próxima pergunta vai com
-      // duas mensagens dela seguidas, e a API rejeita) e deixa só o registro na tela.
+      // Descarta o turno quebrado do histórico (senão sobra um function_call sem
+      // resposta, e a API rejeita a conversa inteira daí em diante) e deixa só o
+      // registro na tela.
       chatLog.length = mark;
-      chatLog.push({ role:"__pergunta", content:text });
-      chatLog.push({ role:"__erro", content:problema });
+      chatLog.push({ type:"__pergunta", text });
+      chatLog.push({ type:"__erro", text:problema });
     }
     if (mutated) { undoSnap = before; save(); renderHeader(); }
     chatBusy = false;
@@ -1469,12 +1489,12 @@
   const mdLite = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
 
   function askKey(){
-    const inp = el("input", { class:"t", type:"password", value:aiKey(), placeholder:"sk-ant-api03-...", autocomplete:"off", spellcheck:"false" });
+    const inp = el("input", { class:"t", type:"password", value:aiKey(), placeholder:"sk-...", autocomplete:"off", spellcheck:"false" });
     openModal("Chave da IA", el("div", { class:"stack" }, [
       el("p", { class:"hint", style:"line-height:1.6", html:
-        'Crie uma chave em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> e cole aqui. '+
+        'Crie uma chave em <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a> e cole aqui. '+
         'Ela fica guardada <b>só neste aparelho</b> e é usada apenas para falar com o assistente.' }),
-      field("Chave de API", inp),
+      field("Chave da OpenAI", inp),
     ]), () => {
       const v = inp.value.trim();
       if (v) localStorage.setItem(AI_KEY_STORE, v); else localStorage.removeItem(AI_KEY_STORE);
@@ -1490,7 +1510,7 @@
       viewHead(c, "Assistente", null);
       c.append(el("div", { class:"card keycard" }, [
         el("div", { class:"em" }, "✨"),
-        el("p", { html:"Pergunte qualquer coisa sobre a festa — e peça pra anotar convidados, gastos e tarefas por você.<br><br>Pra começar, é preciso uma chave de API da Anthropic." }),
+        el("p", { html:"Pergunte qualquer coisa sobre a festa — e peça pra anotar convidados, gastos e tarefas por você.<br><br>Pra começar, é preciso uma chave de API da OpenAI." }),
         el("div", { style:"margin-top:16px" }, el("button", { class:"btn", onclick:askKey }, "🔑 Configurar chave")),
       ]));
       return;
@@ -1544,22 +1564,31 @@
       chatBox.append(sug);
     }
 
-    chatLog.forEach(m => {
-      if (m.role === "__erro") { chatBox.append(el("div", { class:"msg err" }, m.content)); return; }
-      if (typeof m.content === "string") {
-        if (m.role === "user" || m.role === "__pergunta") chatBox.append(el("div", { class:"msg me" }, m.content));
-        return;
+    let acts = null;   // agrupa os chips de ação que vêm em sequência
+    const flush = () => { if (acts) { chatBox.append(acts); acts = null; } };
+
+    chatLog.forEach(it => {
+      if (it.type === "__pergunta" || isPergunta(it)) {
+        flush();
+        chatBox.append(el("div", { class:"msg me" }, it.text ?? it.content));
+      } else if (it.type === "__erro") {
+        flush();
+        chatBox.append(el("div", { class:"msg err" }, it.text));
+      } else if (it.type === "message" && it.role === "assistant") {
+        flush();
+        (it.content || []).forEach(b => {
+          const t = (b.text || "").trim();
+          if (b.type === "output_text" && t) chatBox.append(el("div", { class:"msg ai", html:mdLite(t) }));
+        });
+      } else if (it.type === "function_call") {
+        let args = {};
+        try { args = JSON.parse(it.arguments || "{}"); } catch {}
+        if (!acts) acts = el("div", { class:"acts" });
+        acts.append(el("span", { class:"act" }, (ACT_LBL[it.name] || (()=>"✔ " + it.name))(args)));
       }
-      if (m.role !== "assistant") return; // tool_results não aparecem na conversa
-      const acts = [];
-      m.content.forEach(b => {
-        if (b.type === "text" && b.text.trim())
-          chatBox.append(el("div", { class:"msg ai", html:mdLite(b.text.trim()) }));
-        else if (b.type === "tool_use")
-          acts.push((ACT_LBL[b.name] || (()=>"✔ " + b.name))(b.input || {}));
-      });
-      if (acts.length) chatBox.append(el("div", { class:"acts" }, acts.map(a => el("span", { class:"act" }, a))));
+      // function_call_output e reasoning não aparecem na conversa
     });
+    flush();
 
     if (chatBusy) chatBox.append(el("div", { class:"typing" }, [el("i"), el("i"), el("i")]));
     else if (undoSnap) chatBox.append(el("div", { class:"acts" },
