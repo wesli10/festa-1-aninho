@@ -14,6 +14,10 @@
  * O passo a passo de instalação está no README, seção "Confirmação de presença".
  */
 
+// Sobe de 1 sempre que este arquivo mudar: o GET devolve o número, e assim
+// dá para saber na hora se a implantação está servindo o código novo.
+var VERSAO = 2;
+
 var SHEET_NAME = "Confirmações";
 var NOME_PLANILHA = "Festa 1 Aninho — Confirmações";
 var PROP_PLANILHA = "planilhaId";
@@ -144,8 +148,8 @@ function doGet(e) {
       };
     }).filter(function (r) { return r.nome; });
 
-    return resposta_({ ok: true, respostas: respostas }, callback);
+    return resposta_({ ok: true, versao: VERSAO, respostas: respostas }, callback);
   } catch (err) {
-    return resposta_({ ok: false, erro: String(err) }, callback);
+    return resposta_({ ok: false, versao: VERSAO, erro: String(err) }, callback);
   }
 }
