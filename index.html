@@ -446,7 +446,8 @@
     checklist: [],
     expenses: [],
     notes: [],
-    calc: { manualPeople:null, rates:null }
+    calc: { manualPeople:null, rates:null },
+    rsvp: { url:"", link:"", seen:[] }
   };
   let S;
   try { S = Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem(KEY) || "{}")); }
@@ -457,6 +458,7 @@
     if (e.amountPaid == null) e.amountPaid = e.paid ? (Number(e.amount)||0) : 0;
     delete e.paid;
   });
+  if (!Array.isArray(S.rsvp.seen)) S.rsvp.seen = [];
   const save = () => localStorage.setItem(KEY, JSON.stringify(S));
 
   const EXP_CATS = ["Decoração","Comida & Bebida","Bolo & Doces","Lembrancinhas","Local & Aluguel","Roupas","Fotos & Vídeo","Outros"];
@@ -824,7 +826,10 @@
     const c = $("#view-convidados"); c.innerHTML = "";
     const t = totals();
     viewHead(c, "Convidados", `${t.peopleConf+t.peoplePend} pessoas`,
-      el("button", { class:"btn sm", onclick:()=>editGuest() }, "＋ Adicionar"));
+      el("div", { style:"display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end" }, [
+        el("button", { class:"btn ghost sm", onclick:openRsvp }, "🔗 Confirmações"),
+        el("button", { class:"btn sm", onclick:()=>editGuest() }, "＋ Adicionar"),
+      ]));
 
     if (!S.guests.length){ c.append(emptyState("👗", "Nenhum convidado ainda.<br>Adicione a família e os amigos que vão celebrar com vocês! 💕")); return; }
 
@@ -872,6 +877,7 @@
               el("span", { class:`pill ${st.cls}` }, [ el("span", { class:"dot" }), st.lbl ]),
               " " + (parts.join(" · ") || "—") + (g.phone ? "  ·  📞 " + g.phone : ""),
             ]),
+            g.rsvpNote ? el("div", { class:"meta", style:"font-style:italic;margin-top:2px" }, "💌 " + g.rsvpNote) : null,
           ]),
           el("button", { class:"rowbtn", title:"Editar", onclick:()=>editGuest(g) }, "✎"),
           el("button", { class:"rowbtn", title:"Remover", onclick:()=>{ S.guests = S.guests.filter(x=>x!==g); save(); renderConvidados(); } }, "🗑"),
@@ -903,6 +909,159 @@
       else Object.assign(g, data);
       save(); renderConvidados();
     }, isNew ? "Adicionar" : "Salvar");
+  }
+
+  // ============ CONFIRMAÇÕES DE PRESENÇA (RSVP) ============
+  // A página confirmar.html recebe as respostas dos convidados; um script do
+  // Google guarda tudo numa planilha. Aqui a gente puxa essas respostas e
+  // encaixa na lista de convidados. Passo a passo: README.
+
+  const normName = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  const justDigits = s => String(s||"").replace(/\D/g,"");
+
+  // O Apps Script redireciona o GET e nem todo navegador deixa ler a resposta;
+  // por isso o JSONP fica de reserva (o script aceita ?callback=).
+  function jsonp(url){
+    return new Promise((resolve, reject) => {
+      const cb = "festaRsvp" + uid().replace(/[^a-z0-9]/gi, "");
+      const tag = document.createElement("script");
+      const limpar = () => { delete window[cb]; tag.remove(); clearTimeout(timer); };
+      const timer = setTimeout(() => { limpar(); reject(new Error("timeout")); }, 20000);
+      window[cb] = data => { limpar(); resolve(data); };
+      tag.onerror = () => { limpar(); reject(new Error("script")); };
+      tag.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cb + "&t=" + Date.now();
+      document.body.append(tag);
+    });
+  }
+  function rsvpBuscar(){
+    const url = (S.rsvp.url||"").trim();
+    if (!url) return Promise.reject(new Error("sem-url"));
+    return fetch(url + (url.includes("?") ? "&" : "?") + "t=" + Date.now(), { redirect:"follow" })
+      .then(r => r.json())
+      .catch(() => jsonp(url));
+  }
+
+  // Tenta achar quem já está na lista: nome igual, telefone igual ou nome contido.
+  function rsvpCasar(r){
+    const n = normName(r.nome), tel = justDigits(r.telefone);
+    return S.guests.find(g => normName(g.name) === n)
+        || (tel.length >= 8 ? S.guests.find(g => justDigits(g.phone).endsWith(tel.slice(-8))) : null)
+        || (n ? S.guests.find(g => { const gn = normName(g.name); return gn && (gn.includes(n) || n.includes(gn)); }) : null)
+        || null;
+  }
+
+  function openRsvp(){
+    const url = el("input", { class:"t", type:"url", inputmode:"url", value:S.rsvp.url||"",
+      placeholder:"https://script.google.com/…/exec" });
+    const link = el("input", { class:"t", type:"url", inputmode:"url", value:S.rsvp.link||"",
+      placeholder:"https://…/confirmar.html" });
+    const status = el("p", { class:"hint", style:"margin:10px 2px 0;min-height:1.4em" }, "");
+    const diz = txt => { status.textContent = txt; };
+
+    const btnBuscar = el("button", { class:"btn sm", onclick:()=>{
+      S.rsvp.url = url.value.trim(); save();
+      if (!S.rsvp.url) return diz("Cole primeiro o endereço do app da web (termina em /exec).");
+      btnBuscar.disabled = true; diz("Buscando…");
+      rsvpBuscar().then(data => {
+        btnBuscar.disabled = false;
+        if (!data || data.ok === false) return diz("O script respondeu com erro: " + ((data && data.erro) || "desconhecido") + ".");
+        const todas = data.respostas || [];
+        const novas = todas.filter(r => r.id && !S.rsvp.seen.includes(r.id));
+        if (!todas.length) return diz("Ainda não chegou nenhuma resposta. 🙂");
+        if (!novas.length) return diz(`${todas.length} resposta(s) — todas já foram importadas.`);
+        closeModal();
+        openRsvpRevisar(novas);
+      }).catch(() => {
+        btnBuscar.disabled = false;
+        diz("Não consegui falar com o script. Confira o endereço e se ele está publicado com acesso para “qualquer pessoa”.");
+      });
+    }}, "🔄 Buscar respostas");
+
+    const guardaLink = () => { S.rsvp.link = link.value.trim(); save(); return S.rsvp.link; };
+    const btnCopiar = el("button", { class:"btn ghost sm", onclick:()=>{
+      const l = guardaLink();
+      if (!l) return diz("Cole o endereço da página confirmar.html.");
+      if (!navigator.clipboard) return diz("Copie à mão: " + l);
+      navigator.clipboard.writeText(l).then(()=>diz("Link copiado! 📋"), ()=>diz("Copie à mão: " + l));
+    }}, "📋 Copiar link");
+    const btnZap = el("button", { class:"btn ghost sm", onclick:()=>{
+      const l = guardaLink();
+      if (!l) return diz("Cole o endereço da página confirmar.html.");
+      const quem = S.settings.babyName ? `da ${S.settings.babyName}` : "do nosso bebê";
+      window.open("https://wa.me/?text=" + encodeURIComponent(
+        `Oi! 🎂 A festa de 1 aninho ${quem} está chegando. Confirma sua presença aqui: ${l}`
+      ), "_blank", "noopener");
+    }}, "💬 Enviar no WhatsApp");
+
+    const btnZerar = el("button", { class:"btn ghost sm", onclick:()=>{
+      if (!S.rsvp.seen.length) return diz("Nenhuma resposta foi importada ainda.");
+      if (!confirm("Trazer de novo todas as respostas, inclusive as já importadas?")) return;
+      S.rsvp.seen = []; save(); diz("Pronto — toque em “Buscar respostas”.");
+    }}, "↺ Rever todas");
+
+    openModal("Confirmações de presença", el("div", { class:"stack" }, [
+      el("p", { class:"hint", style:"margin:0 2px 4px",
+        html:"Mande o link do convite para os convidados e traga as respostas para cá. 💌" }),
+      field("Link do convite (confirmar.html)", link),
+      el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [ btnCopiar, btnZap ]),
+      el("hr", { style:"border:none;border-top:1px solid var(--line);margin:16px 0 4px" }),
+      field("Endereço do app da web (Apps Script)", url),
+      el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [ btnBuscar, btnZerar ]),
+      status,
+    ]), () => { S.rsvp.url = url.value.trim(); guardaLink(); save(); }, "Salvar");
+  }
+
+  function openRsvpRevisar(novas){
+    const linhas = novas.map(r => {
+      const vai = r.presenca === "sim";
+      const alvo = rsvpCasar(r);
+      const sel = el("select", { class:"t" });
+      sel.append(el("option", { value:"novo" }, "➕ Criar novo convidado"));
+      S.guests.forEach(g => sel.append(el("option", { value:g.id }, "↻ Atualizar " + g.name)));
+      sel.append(el("option", { value:"ignorar" }, "🚫 Ignorar esta resposta"));
+      sel.value = alvo ? alvo.id : "novo";
+
+      const partes = [];
+      if (r.adultos) partes.push(`${r.adultos} adulto${r.adultos>1?"s":""}`);
+      if (r.criancas) partes.push(`${r.criancas} criança${r.criancas>1?"s":""}`);
+
+      const card = el("div", { class:"card", style:"padding:12px;margin:0" }, [
+        el("div", { class:"title" }, r.nome),
+        el("div", { class:"meta" }, [
+          el("span", { class:`pill ${vai?"good":"crit"}` }, [ el("span", { class:"dot" }), vai ? "Vai" : "Não vai" ]),
+          " " + (vai ? (partes.join(" · ") || "—") : "—") + (r.telefone ? "  ·  📞 " + r.telefone : ""),
+        ]),
+        r.recado ? el("div", { class:"meta", style:"font-style:italic;margin-top:4px" }, "💌 " + r.recado) : null,
+        el("div", { style:"margin-top:10px" }, sel),
+      ]);
+      return { r, sel, card };
+    });
+
+    openModal(`${novas.length} resposta${novas.length>1?"s":""} nova${novas.length>1?"s":""}`,
+      el("div", { class:"stack" }, [
+        el("p", { class:"hint", style:"margin:0 2px",
+          html:"Conferimos com a sua lista pelo nome e pelo telefone. Ajuste o que não bateu antes de aplicar." }),
+        ...linhas.map(l => l.card),
+      ]), () => {
+        linhas.forEach(({ r, sel }) => {
+          const status = r.presenca === "sim" ? "confirmed" : "declined";
+          if (sel.value === "novo") {
+            S.guests.push({ id:uid(), name:r.nome, adults:r.adultos||0, children:r.criancas||0,
+              phone:r.telefone||"", status, rsvpNote:r.recado||"" });
+          } else if (sel.value !== "ignorar") {
+            const g = S.guests.find(x => x.id === sel.value);
+            if (g) {
+              g.status = status;
+              if (status === "confirmed") { g.adults = r.adultos||0; g.children = r.criancas||0; }
+              if (r.telefone) g.phone = r.telefone;
+              if (r.recado) g.rsvpNote = r.recado;
+            }
+          }
+          if (r.id && !S.rsvp.seen.includes(r.id)) S.rsvp.seen.push(r.id);
+        });
+        save(); renderConvidados();
+      }, "Aplicar");
   }
 
   // ============ CHECKLIST ============

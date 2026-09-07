@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#DB4C74" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191221" media="(prefers-color-scheme: dark)">
+<title>Confirmar presença — Festa de 1 Aninho</title>
+<meta name="description" content="Confirme sua presença na festa de 1 aninho.">
+<meta property="og:title" content="Você está convidado! 🎂">
+<meta property="og:description" content="Toque para confirmar sua presença na festa.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  /* ===== Tokens: mesma paleta do app ("Confete & Luz de Vela") ===== */
+  :root {
+    color-scheme: light;
+    --bg: #FBF4F3;
+    --surface: #FFFFFF;
+    --surface-2: #FCEDEF;
+    --ink: #34243A;
+    --ink-2: #71607A;
+    --ink-3: #9A8BA2;
+    --accent: #DB4C74;
+    --accent-soft: #FBE4EB;
+    --accent-2: #E8933B;
+    --line: #F0DFE2;
+    --line-2: #E7D3D7;
+    --good: #0E9E3D;   --good-bg: #E4F5E9;
+    --crit: #D03B3B;   --crit-bg: #FBE3E3;
+    --shadow: 0 1px 2px rgba(52,36,58,.05), 0 8px 24px rgba(52,36,58,.06);
+    --radius: 16px;
+    --radius-sm: 11px;
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", sans-serif;
+    --display: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #191221;
+      --surface: #241C2F;
+      --surface-2: #2F2439;
+      --ink: #F6EDF2;
+      --ink-2: #C3B2CB;
+      --ink-3: #8E7D97;
+      --accent: #F2799B;
+      --accent-soft: #3A2333;
+      --accent-2: #F0A65B;
+      --line: #362B42;
+      --line-2: #43364F;
+      --good: #5FD98A;   --good-bg: #1D3A28;
+      --crit: #F08585;   --crit-bg: #3E2224;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--font); font-size: 16px; line-height: 1.5;
+    padding: 0 16px calc(40px + env(safe-area-inset-bottom));
+  }
+  .wrap { max-width: 520px; margin: 0 auto; }
+
+  /* ===== Capa ===== */
+  header { text-align: center; padding: 34px 8px 22px; }
+  .balloons { font-size: 40px; letter-spacing: 4px; line-height: 1; }
+  header h1 {
+    font-family: var(--display); font-size: 30px; line-height: 1.15;
+    margin: 14px 0 6px; color: var(--accent); font-weight: 800;
+  }
+  header .sub { color: var(--ink-2); font-size: 15px; margin: 0; }
+  header .age {
+    display: inline-block; margin-top: 12px; padding: 5px 14px;
+    background: var(--accent-soft); color: var(--accent);
+    border-radius: 999px; font-weight: 700; font-size: 13px;
+  }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 18px; margin-bottom: 14px;
+  }
+
+  /* ===== Detalhes da festa ===== */
+  .detalhes { display: grid; gap: 12px; }
+  .det { display: flex; gap: 12px; align-items: flex-start; }
+  .det .ic { font-size: 20px; line-height: 1.3; width: 26px; flex: none; text-align: center; }
+  .det .k { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; }
+  .det .v { font-weight: 600; }
+  .det a { color: var(--accent); }
+
+  /* ===== Formulário ===== */
+  h2 { font-family: var(--display); font-size: 19px; margin: 0 0 4px; }
+  .hint { color: var(--ink-2); font-size: 14px; margin: 0 0 16px; }
+  label.f { display: block; margin-bottom: 14px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .t {
+    width: 100%; margin-top: 6px; padding: 12px 13px; font: inherit; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
+  }
+  .t:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
+  textarea.t { resize: vertical; min-height: 76px; }
+
+  .escolha { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 18px; }
+  .escolha button {
+    font: inherit; font-weight: 700; cursor: pointer; padding: 15px 8px;
+    background: var(--surface); color: var(--ink-2);
+    border: 2px solid var(--line-2); border-radius: var(--radius-sm);
+    display: grid; gap: 3px; justify-items: center;
+  }
+  .escolha button .e { font-size: 22px; }
+  .escolha button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .escolha button.nao[aria-pressed="true"] { border-color: var(--crit); background: var(--crit-bg); color: var(--crit); }
+
+  .contadores { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .cont { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 12px; }
+  .cont .k { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .cont .linha { display: flex; align-items: center; justify-content: space-between; margin-top: 7px; }
+  .cont .n { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 1.4em; text-align: center; }
+  .step {
+    width: 38px; height: 38px; flex: none; font-size: 20px; font-weight: 700; cursor: pointer;
+    background: var(--surface); color: var(--accent); border: 1px solid var(--line-2);
+    border-radius: 10px; display: grid; place-items: center;
+  }
+  .step:disabled { opacity: .35; cursor: default; }
+
+  .btn {
+    width: 100%; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+    padding: 15px; border: none; border-radius: var(--radius-sm);
+    background: var(--accent); color: #fff;
+  }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line-2); }
+
+  .erro {
+    background: var(--crit-bg); color: var(--crit); border-radius: var(--radius-sm);
+    padding: 11px 13px; font-size: 14px; margin-bottom: 14px;
+  }
+  .aviso {
+    background: var(--accent-soft); color: var(--ink); border: 1px dashed var(--accent);
+    border-radius: var(--radius-sm); padding: 13px; font-size: 14px; margin-bottom: 14px;
+  }
+  .aviso code { background: var(--surface); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+
+  /* ===== Fim ===== */
+  .fim { text-align: center; padding: 8px 4px 4px; }
+  .fim .e { font-size: 52px; line-height: 1; }
+  .fim h2 { font-size: 23px; color: var(--accent); margin: 14px 0 8px; }
+  .fim p { color: var(--ink-2); margin: 0 0 18px; }
+  .rodape { text-align: center; color: var(--ink-3); font-size: 13px; padding: 4px 0 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="balloons">🎈🎂🎈</div>
+    <h1 id="titulo">Você está convidado!</h1>
+    <p class="sub" id="subtitulo">Vem comemorar com a gente</p>
+    <span class="age">1 aninho 💕</span>
+  </header>
+
+  <div class="card" id="cardDetalhes"><div class="detalhes" id="detalhes"></div></div>
+
+  <div class="card" id="cardForm">
+    <div id="avisoConfig" class="aviso" hidden></div>
+    <h2>Confirme sua presença</h2>
+    <p class="hint">É rapidinho — assim a gente acerta a comida e o espaço. 💛</p>
+
+    <div id="erro" class="erro" hidden></div>
+
+    <label class="f">Seu nome (ou o da família)
+      <input class="t" id="nome" autocomplete="name" placeholder="Ex.: Família Silva" maxlength="80">
+    </label>
+
+    <div class="escolha">
+      <button type="button" id="btnSim" aria-pressed="false"><span class="e">🎉</span>Eu vou!</button>
+      <button type="button" id="btnNao" class="nao" aria-pressed="false"><span class="e">😔</span>Não vou poder</button>
+    </div>
+
+    <div id="quantos" hidden>
+      <div class="contadores">
+        <div class="cont">
+          <div class="k">🧑 Adultos</div>
+          <div class="linha">
+            <button type="button" class="step" data-menos="adultos">−</button>
+            <span class="n" id="nAdultos">1</span>
+            <button type="button" class="step" data-mais="adultos">+</button>
+          </div>
+        </div>
+        <div class="cont">
+          <div class="k">🧒 Crianças</div>
+          <div class="linha">
+            <button type="button" class="step" data-menos="criancas">−</button>
+            <span class="n" id="nCriancas">0</span>
+            <button type="button" class="step" data-mais="criancas">+</button>
+          </div>
+        </div>
+      </div>
+      <label class="f">Telefone <span style="font-weight:400;color:var(--ink-3)">(opcional)</span>
+        <input class="t" id="telefone" type="tel" autocomplete="tel" placeholder="(00) 90000-0000" maxlength="30">
+      </label>
+    </div>
+
+    <label class="f">Recado para a família <span style="font-weight:400;color:var(--ink-3)">(opcional)</span>
+      <textarea class="t" id="recado" maxlength="500" placeholder="Deixe um carinho aqui 💌"></textarea>
+    </label>
+
+    <button class="btn" id="enviar">Confirmar</button>
+  </div>
+
+  <div class="card fim" id="cardFim" hidden>
+    <div class="e" id="fimEmoji">🎉</div>
+    <h2 id="fimTitulo">Presença confirmada!</h2>
+    <p id="fimTexto"></p>
+    <button class="btn ghost" id="btnAlterar">Alterar minha resposta</button>
+  </div>
+
+  <p class="rodape">Feito com 💕 para o 1º aninho</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ==========================================================================
+  // CONFIGURAÇÃO — preencha estas duas partes e publique a página.
+  // ==========================================================================
+
+  // 1) Endereço do "app da web" do Apps Script (termina em /exec).
+  //    Veja o passo a passo no README, seção "Confirmação de presença".
+  var ENDPOINT = "";
+
+  // 2) Os dados da festa que aparecem no convite.
+  var FESTA = {
+    aniversariante: "",                 // Ex.: "Helena"  (vazio = usa "nosso bebê")
+    data: "",                           // Ex.: "2026-11-15"  (formato ano-mês-dia)
+    hora: "",                           // Ex.: "16h"
+    local: "",                          // Ex.: "Salão de festas do Ed. Jardins"
+    endereco: "",                       // Ex.: "Rua das Flores, 120 — Centro"
+    mapa: "",                           // Ex.: link do Google Maps (opcional)
+    observacao: ""                      // Ex.: "Traje: à vontade!"  (opcional)
+  };
+
+  // ==========================================================================
+
+  var $ = function (id) { return document.getElementById(id); };
+  var CHAVE = "festa1ano.rsvp";
+
+  // ---- Capa e detalhes ----------------------------------------------------
+  var MESES = ["janeiro","fevereiro","março","abril","maio","junho",
+               "julho","agosto","setembro","outubro","novembro","dezembro"];
+  var DIAS = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
+
+  function dataPorExtenso(iso) {
+    var partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+    if (!partes) return iso || "";
+    var d = new Date(+partes[1], +partes[2] - 1, +partes[3]);
+    return DIAS[d.getDay()] + ", " + d.getDate() + " de " + MESES[d.getMonth()] + " de " + d.getFullYear();
+  }
+
+  if (FESTA.aniversariante) {
+    document.title = "Confirmar presença — 1 aninho da " + FESTA.aniversariante;
+    $("titulo").textContent = "1 aninho da " + FESTA.aniversariante + "!";
+    $("subtitulo").textContent = "Vem comemorar com a gente 💕";
+  }
+
+  var detalhes = $("detalhes");
+  function detalhe(icone, chave, valor, link) {
+    if (!valor) return;
+    var box = document.createElement("div"); box.className = "det";
+    var ic = document.createElement("div"); ic.className = "ic"; ic.textContent = icone;
+    var txt = document.createElement("div");
+    var k = document.createElement("div"); k.className = "k"; k.textContent = chave;
+    var v = document.createElement("div"); v.className = "v";
+    if (link) {
+      var a = document.createElement("a");
+      a.href = link; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = valor;
+      v.appendChild(a);
+    } else { v.textContent = valor; }
+    txt.appendChild(k); txt.appendChild(v);
+    box.appendChild(ic); box.appendChild(txt);
+    detalhes.appendChild(box);
+  }
+  detalhe("📅", "Quando", [dataPorExtenso(FESTA.data), FESTA.hora].filter(Boolean).join(" · "));
+  detalhe("📍", "Onde", FESTA.local);
+  detalhe("🗺️", "Endereço", FESTA.endereco, FESTA.mapa);
+  detalhe("✨", "Recado", FESTA.observacao);
+  if (!detalhes.children.length) $("cardDetalhes").hidden = true;
+
+  // ---- Estado do formulário ----------------------------------------------
+  var presenca = null;         // "sim" | "nao"
+  var contas = { adultos: 1, criancas: 0 };
+
+  function pintarEscolha() {
+    $("btnSim").setAttribute("aria-pressed", String(presenca === "sim"));
+    $("btnNao").setAttribute("aria-pressed", String(presenca === "nao"));
+    $("quantos").hidden = presenca !== "sim";
+    $("enviar").textContent = presenca === "nao" ? "Enviar resposta" : "Confirmar";
+  }
+  function pintarContas() {
+    $("nAdultos").textContent = contas.adultos;
+    $("nCriancas").textContent = contas.criancas;
+    document.querySelectorAll("[data-menos]").forEach(function (b) {
+      b.disabled = contas[b.dataset.menos] <= 0;
+    });
+  }
+
+  $("btnSim").addEventListener("click", function () { presenca = "sim"; pintarEscolha(); });
+  $("btnNao").addEventListener("click", function () { presenca = "nao"; pintarEscolha(); });
+  document.querySelectorAll(".step").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var mais = b.dataset.mais, menos = b.dataset.menos;
+      if (mais) contas[mais] = Math.min(50, contas[mais] + 1);
+      else contas[menos] = Math.max(0, contas[menos] - 1);
+      pintarContas();
+    });
+  });
+  pintarEscolha(); pintarContas();
+
+  function mostrarErro(texto) {
+    var box = $("erro");
+    box.textContent = texto;
+    box.hidden = !texto;
+    if (texto) box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
+  if (!ENDPOINT) {
+    var aviso = $("avisoConfig");
+    aviso.innerHTML = "⚠️ <b>Só quem organiza vê este aviso.</b> Falta colar o endereço do " +
+      "app da web do Apps Script na variável <code>ENDPOINT</code>, lá no começo do " +
+      "<code>&lt;script&gt;</code> deste arquivo. Sem isso as respostas não são salvas.";
+    aviso.hidden = false;
+  }
+
+  // ---- Envio --------------------------------------------------------------
+  // O Apps Script não responde ao "preflight" do CORS, então mandamos como
+  // text/plain (que o navegador considera um pedido simples). Se ainda assim o
+  // navegador bloquear a leitura da resposta, repetimos em no-cors: nesse modo
+  // não dá para ler o retorno, mas a gravação acontece.
+  function enviar(dados) {
+    var corpo = JSON.stringify(dados);
+    return fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: corpo,
+      redirect: "follow"
+    }).then(function (r) {
+      return r.json().catch(function () { return { ok: true }; });
+    }).catch(function () {
+      return fetch(ENDPOINT, { method: "POST", mode: "no-cors", body: corpo })
+        .then(function () { return { ok: true, cego: true }; });
+    });
+  }
+
+  $("enviar").addEventListener("click", function () {
+    var nome = $("nome").value.trim();
+    if (!nome) { mostrarErro("Escreva seu nome para a gente saber quem é. 🙂"); $("nome").focus(); return; }
+    if (!presenca) { mostrarErro("Toque em “Eu vou!” ou “Não vou poder”."); return; }
+    if (presenca === "sim" && contas.adultos + contas.criancas === 0) {
+      mostrarErro("Diga quantas pessoas vão — pelo menos 1. 🙂"); return;
+    }
+    if (!ENDPOINT) { mostrarErro("Esta página ainda não está conectada. Avise quem te convidou. 🙏"); return; }
+    mostrarErro("");
+
+    var dados = {
+      nome: nome,
+      presenca: presenca,
+      adultos: presenca === "sim" ? contas.adultos : 0,
+      criancas: presenca === "sim" ? contas.criancas : 0,
+      telefone: $("telefone").value.trim(),
+      recado: $("recado").value.trim()
+    };
+
+    var botao = $("enviar");
+    botao.disabled = true;
+    botao.textContent = "Enviando…";
+
+    enviar(dados).then(function (r) {
+      if (r && r.ok === false) throw new Error(r.erro || "erro");
+      try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch (ignore) {}
+      concluir(dados);
+    }).catch(function () {
+      botao.disabled = false;
+      botao.textContent = presenca === "nao" ? "Enviar resposta" : "Confirmar";
+      mostrarErro("Não consegui enviar agora. Confira a internet e tente de novo. 🙏");
+    });
+  });
+
+  // ---- Tela final ---------------------------------------------------------
+  function concluir(dados) {
+    var pessoas = dados.adultos + dados.criancas;
+    if (dados.presenca === "sim") {
+      $("fimEmoji").textContent = "🎉";
+      $("fimTitulo").textContent = "Presença confirmada!";
+      $("fimTexto").textContent = "Anotamos " + pessoas + (pessoas > 1 ? " pessoas" : " pessoa") +
+        " para " + dados.nome + ". A gente se vê na festa! 💕";
+    } else {
+      $("fimEmoji").textContent = "💛";
+      $("fimTitulo").textContent = "Resposta enviada";
+      $("fimTexto").textContent = "Que pena, " + dados.nome + "! Vamos sentir sua falta — obrigado por avisar.";
+    }
+    $("cardForm").hidden = true;
+    $("cardFim").hidden = false;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  $("btnAlterar").addEventListener("click", function () {
+    $("cardFim").hidden = true;
+    $("cardForm").hidden = false;
+    $("enviar").disabled = false;
+    $("enviar").textContent = presenca === "nao" ? "Enviar resposta" : "Confirmar";
+    $("nome").focus();
+  });
+
+  // Já respondeu neste aparelho? Mostra a resposta e deixa alterar.
+  try {
+    var salvo = JSON.parse(localStorage.getItem(CHAVE) || "null");
+    if (salvo && salvo.nome) {
+      $("nome").value = salvo.nome;
+      $("telefone").value = salvo.telefone || "";
+      $("recado").value = salvo.recado || "";
+      presenca = salvo.presenca;
+      contas.adultos = salvo.adultos || 0;
+      contas.criancas = salvo.criancas || 0;
+      pintarEscolha(); pintarContas();
+      concluir(salvo);
+    }
+  } catch (ignore) {}
+})();
+</script>
+</body>
+</html>
