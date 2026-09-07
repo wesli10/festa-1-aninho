@@ -51,11 +51,21 @@ Se preferir uma planilha que já existe, dá para colar o mesmo código nela
 
 ### 2. Preparar a página do convite
 
-No começo do `<script>` de `confirmar.html`, preencha:
+No começo do `<script>` de `confirmar.html`, preencha o `ENDPOINT` com o URL
+`/exec` que você copiou. É a única coisa que precisa estar no arquivo.
 
-- `ENDPOINT` — o URL `/exec` que você copiou.
-- `FESTA` — nome da aniversariante, data, hora, local, endereço, link do mapa e
-  um recado. O que ficar vazio simplesmente não aparece.
+Os **dados da festa** não: eles viajam no próprio link. Quem organiza preenche
+⚙ **Detalhes da festa** no app — nome, data, horário, local, endereço, link do
+mapa e um recado — e o botão *Copiar link* devolve algo assim:
+
+```
+…/confirmar.html#f=Helena*2026-11-15*16h*Salão%20de%20festas*…
+```
+
+O convite lê esses dados do fim do link. Mudou o horário ou o salão? Basta
+editar no app e copiar o link de novo — sem mexer em código nem publicar nada.
+(O `FESTA` no topo do arquivo continua servindo de padrão, para quando o link
+vier sem dados.)
 
 Publique o arquivo em qualquer lugar que sirva HTML. Se o repositório estiver no
 GitHub Pages (*Settings ▸ Pages ▸ Deploy from a branch*), o link já fica pronto:

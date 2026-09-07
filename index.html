@@ -441,7 +441,8 @@
   // ===== State / persistence =====
   const KEY = "festa1ano.v1";
   const DEFAULT = {
-    settings: { babyName:"", partyDate:"", venue:"", theme:"", budget:0 },
+    settings: { babyName:"", partyDate:"", venue:"", theme:"", budget:0,
+                time:"", address:"", map:"", note:"" },
     guests: [],
     checklist: [],
     expenses: [],
@@ -584,17 +585,31 @@
   $("#btnSettings").addEventListener("click", () => {
     const name = el("input", { class:"t", value:S.settings.babyName, placeholder:"Ex.: Helena" });
     const date = el("input", { class:"t", type:"date", value:S.settings.partyDate });
+    const time = el("input", { class:"t", value:S.settings.time||"", placeholder:"Ex.: 16h  ·  16h às 20h" });
     const venue = el("input", { class:"t", value:S.settings.venue, placeholder:"Ex.: Salão de festas do prédio" });
+    const address = el("input", { class:"t", value:S.settings.address||"", placeholder:"Ex.: Rua das Flores, 120 — Centro" });
+    const map = el("input", { class:"t", type:"url", inputmode:"url", value:S.settings.map||"",
+      placeholder:"Link do Google Maps (opcional)" });
+    const note = el("input", { class:"t", value:S.settings.note||"", placeholder:"Ex.: Traje: à vontade! (opcional)" });
     const budget = moneyInput(S.settings.budget);
     openModal("Detalhes da festa", el("div", { class:"stack" }, [
       field("Nome da aniversariante", name),
-      field("Data da festa", date),
+      el("div", { class:"grid2" }, [ field("Data da festa", date), field("Horário", time) ]),
       field("Local", venue),
+      field("Endereço", address),
+      field("Link do mapa", map),
+      field("Recado no convite", note),
+      el("p", { class:"hint", style:"margin:-4px 2px 4px" },
+        "Data, local, endereço, mapa e recado aparecem no convite que você manda aos convidados."),
       field("Orçamento total (R$)", budget),
     ]), () => {
       S.settings.babyName = name.value.trim();
       S.settings.partyDate = date.value;
+      S.settings.time = time.value.trim();
       S.settings.venue = venue.value.trim();
+      S.settings.address = address.value.trim();
+      S.settings.map = map.value.trim();
+      S.settings.note = note.value.trim();
       S.settings.budget = budget.getValue() || 0;
       save(); renderHeader(); renderAll();
     });
@@ -951,6 +966,20 @@
         || null;
   }
 
+  // Os dados da festa viajam no fim do link: cada campo é codificado e os sete
+  // são juntados por "*". O encodeURIComponent deixa o "*" passar inteiro, então
+  // escapamos ele à mão — senão um asterisco no recado ou no link do mapa
+  // partiria o link no lugar errado. Assim o convite mostra data, local e recado
+  // sem ninguém precisar mexer no código.
+  const RSVP_CAMPOS = ["babyName","partyDate","time","venue","address","map","note"];
+  function rsvpConvite(base){
+    const b = String(base||"").trim().split("#")[0];
+    if (!b) return "";
+    const campos = RSVP_CAMPOS.map(k =>
+      encodeURIComponent(String(S.settings[k]||"").trim()).replace(/\*/g, "%2A"));
+    return campos.some(v => v) ? b + "#f=" + campos.join("*") : b;
+  }
+
   function openRsvp(){
     const url = el("input", { class:"t", type:"url", inputmode:"url", value:S.rsvp.url||"",
       placeholder:"https://script.google.com/…/exec" });
@@ -978,7 +1007,7 @@
       });
     }}, "🔄 Buscar respostas");
 
-    const guardaLink = () => { S.rsvp.link = link.value.trim(); save(); return S.rsvp.link; };
+    const guardaLink = () => { S.rsvp.link = link.value.trim().split("#")[0]; save(); return rsvpConvite(S.rsvp.link); };
     const btnCopiar = el("button", { class:"btn ghost sm", onclick:()=>{
       const l = guardaLink();
       if (!l) return diz("Cole o endereço da página confirmar.html.");
@@ -1004,6 +1033,10 @@
       el("p", { class:"hint", style:"margin:0 2px 4px",
         html:"Mande o link do convite para os convidados e traga as respostas para cá. 💌" }),
       field("Link do convite (confirmar.html)", link),
+      el("p", { class:"hint", style:"margin:-6px 2px 0" },
+        RSVP_CAMPOS.some(k => S.settings[k])
+          ? "O link leva a data, o local e o recado de ⚙ Detalhes da festa. Mudou algum deles? Copie o link de novo."
+          : "⚠️ Preencha ⚙ Detalhes da festa primeiro — senão o convite sai sem data nem local."),
       el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [ btnCopiar, btnZap ]),
       el("hr", { style:"border:none;border-top:1px solid var(--line);margin:16px 0 4px" }),
       field("Endereço do app da web (Apps Script)", url),

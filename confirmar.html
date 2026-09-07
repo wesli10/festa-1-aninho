@@ -246,6 +246,23 @@
 
   // ==========================================================================
 
+  // Os dados acima são o padrão. Se o link trouxer "#f=…" — o app de quem
+  // organiza monta assim, a partir de ⚙ Detalhes da festa — ele manda, e o
+  // convite muda de data ou de local sem ninguém mexer neste arquivo.
+  (function lerLink() {
+    var m = /^#f=(.*)$/.exec(location.hash || "");
+    if (!m) return;
+    var valores = m[1].split("*");
+    ["aniversariante", "data", "hora", "local", "endereco", "mapa", "observacao"]
+      .forEach(function (chave, i) {
+        try { FESTA[chave] = decodeURIComponent(valores[i] || ""); }
+        catch (err) { FESTA[chave] = ""; }
+      });
+  })();
+
+  // O mapa vira href: só http(s), nunca javascript:
+  function linkSeguro(u) { return /^https?:\/\//i.test(String(u || "")) ? u : ""; }
+
   var $ = function (id) { return document.getElementById(id); };
   var CHAVE = "festa1ano.rsvp";
 
@@ -286,7 +303,7 @@
   }
   detalhe("📅", "Quando", [dataPorExtenso(FESTA.data), FESTA.hora].filter(Boolean).join(" · "));
   detalhe("📍", "Onde", FESTA.local);
-  detalhe("🗺️", "Endereço", FESTA.endereco, FESTA.mapa);
+  detalhe("🗺️", "Endereço", FESTA.endereco, linkSeguro(FESTA.mapa));
   detalhe("✨", "Recado", FESTA.observacao);
   if (!detalhes.children.length) $("cardDetalhes").hidden = true;
 
