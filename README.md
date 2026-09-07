@@ -75,16 +75,23 @@ GitHub Pages (*Settings ▸ Pages ▸ Deploy from a branch*), o link já fica pr
 
 ### 3. Convidar e importar
 
-Na aba **Convidados**, toque em **🔗 Confirmações**, cole o link do convite e o
-endereço `/exec`, e salve. Dali dá para copiar o link, mandar direto no WhatsApp
-e buscar as respostas quando quiser — cada resposta só aparece uma vez, e você
-escolhe se ela cria um convidado novo ou atualiza um que já existe.
+Na aba **Convidados**, o botão **🔗 Confirmações** abre a tela **Respostas**.
+Na primeira vez ela manda direto para o **⚙ Configurar**: cole o link do convite,
+o endereço `/exec` e (opcional) a **chave**, e salve. Isso se faz uma vez só —
+fica guardado no aparelho.
 
-**📋 Todas as respostas** mostra tudo que já chegou, da mais nova para a mais
-velha, marcando quais você já importou. Colando também a **chave** no mesmo
-lugar, cada resposta ganha um 🗑 que a apaga da planilha — bom para teste,
-duplicata ou quem respondeu duas vezes. Apagar ali não mexe na lista de
-convidados: quem já foi importado continua lá, com ✎ e 🗑 próprios.
+Dali em diante o botão abre a lista de respostas, da mais nova para a mais velha:
+
+- Chegou coisa nova? Um cartão em destaque no topo, com **↓ Importar** — você
+  revisa cada uma e escolhe se cria um convidado novo ou atualiza um existente.
+- Cada resposta mostra quando chegou e se já foi importada.
+- Com a chave colada, cada uma ganha um 🗑 que a apaga **da planilha** — bom para
+  teste, duplicata ou quem respondeu duas vezes.
+- **⚙ Configurar** guarda o que se mexe uma vez: os endereços, a chave, e os
+  botões de copiar o link / mandar no WhatsApp.
+
+Apagar uma resposta não mexe na lista de convidados: quem já foi importado
+continua lá, com ✎ e 🗑 próprios.
 
 A chave existe porque o endereço `/exec` fica visível na página do convite —
 sem ela, qualquer convidado poderia apagar a lista inteira. Enviar confirmação

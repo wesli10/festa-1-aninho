@@ -980,7 +980,124 @@
     return campos.some(v => v) ? b + "#f=" + campos.join("*") : b;
   }
 
+  // Apagar mexe na planilha, então exige a chave que só este app tem — a página
+  // do convite nunca a recebe. A resposta do POST nem sempre volta legível
+  // através do redirecionamento do Google, então quem diz a verdade é a lista:
+  // buscamos de novo, conferimos se a resposta sumiu e devolvemos o que restou.
+  function rsvpApagar(id){
+    const url = (S.rsvp.url||"").trim();
+    const corpo = JSON.stringify({ acao:"apagar", id, chave:(S.rsvp.key||"").trim() });
+    const enviar = fetch(url, { method:"POST", body:corpo, redirect:"follow",
+        headers:{ "Content-Type":"text/plain;charset=utf-8" } })
+      .catch(() => fetch(url, { method:"POST", mode:"no-cors", body:corpo }))
+      .catch(() => null);          // deu erro no envio? a lista abaixo desempata
+    return enviar.then(() => rsvpBuscar()).then(data => {
+      const restantes = data.respostas || [];
+      if (restantes.some(r => r.id === id)) throw new Error("nao-apagou");
+      S.rsvp.seen = S.rsvp.seen.filter(x => x !== id);
+      save();
+      return restantes;
+    });
+  }
+
+  const rsvpQuando = iso => {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const p = n => String(n).padStart(2, "0");
+    return `${p(d.getDate())}/${p(d.getMonth()+1)} às ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  // ===== Tela do dia a dia: as respostas que chegaram =====
+  // A configuração (link, endereço do script, chave) fica atrás do ⚙, porque se
+  // mexe nela uma vez só. Aqui ficam as respostas, que se olha toda semana.
   function openRsvp(){
+    if (!(S.rsvp.url||"").trim()) return openRsvpConfig();
+
+    const topo = el("div", {});
+    const lista = el("div", { class:"stack" }, el("p", { class:"hint", style:"padding:8px 2px" }, "Buscando…"));
+    const btnAtualizar = el("button", { class:"btn ghost sm", onclick:()=>{
+      btnAtualizar.disabled = true;
+      topo.innerHTML = ""; aviso("Buscando…");
+      carregar().then(()=>{ btnAtualizar.disabled = false; });
+    }}, "🔄 Atualizar");
+    const pe = el("div", { style:"display:flex;gap:8px;flex-wrap:wrap;margin-top:2px" }, [
+      btnAtualizar,
+      el("button", { class:"btn ghost sm", onclick:()=>{ closeModal(); openRsvpConfig(); } }, "⚙ Configurar"),
+    ]);
+
+    openModal("Respostas", el("div", { class:"stack" }, [ topo, lista, pe ]), ()=>{}, "Fechar", true);
+    carregar();
+
+    function aviso(txt){
+      lista.innerHTML = "";
+      lista.append(el("p", { class:"hint", style:"padding:8px 2px" }, txt));
+    }
+
+    function carregar(){
+      return rsvpBuscar().then(data => {
+        if (!data || data.ok === false) return aviso("O script respondeu com erro: " + ((data && data.erro) || "desconhecido") + ".");
+        pintar(data.respostas || []);
+      }).catch(() => aviso("Não consegui falar com o script. Confira o endereço em ⚙ Configurar."));
+    }
+
+    function pintar(todas){
+      topo.innerHTML = ""; lista.innerHTML = "";
+      if (!todas.length) return aviso("Ainda não chegou nenhuma resposta. 🙂");
+
+      // o que ainda não virou convidado ganha destaque e um atalho para importar
+      const novas = todas.filter(r => r.id && !S.rsvp.seen.includes(r.id));
+      if (novas.length){
+        const n = novas.length;
+        topo.append(el("div", { class:"card", style:"padding:14px;margin:0 0 4px;border-color:var(--accent)" }, [
+          el("div", { class:"title" }, `${n} resposta${n>1?"s":""} nova${n>1?"s":""}`),
+          el("div", { class:"meta", style:"margin:2px 0 12px" }, "Ainda não entraram na lista de convidados."),
+          el("button", { class:"btn sm", onclick:()=>{ closeModal(); openRsvpRevisar(novas); } },
+            n > 1 ? "↓ Importar todas" : "↓ Importar"),
+        ]));
+      } else {
+        topo.append(el("p", { class:"hint", style:"margin:0 2px" }, "Tudo que chegou já está na lista de convidados. 💛"));
+      }
+
+      const temChave = !!(S.rsvp.key||"").trim();
+      todas.slice().reverse().forEach(r => {
+        const vai = r.presenca === "sim";
+        const partes = [];
+        if (r.adultos) partes.push(`${r.adultos} adulto${r.adultos>1?"s":""}`);
+        if (r.criancas) partes.push(`${r.criancas} criança${r.criancas>1?"s":""}`);
+        const jaVeio = S.rsvp.seen.includes(r.id);
+
+        const status = el("p", { class:"hint", style:"margin:6px 2px 0" }, "");
+        const lixo = el("button", { class:"rowbtn", title:"Apagar da planilha", onclick:()=>{
+          if (!confirm(`Apagar a resposta de ${r.nome} da planilha?\n\nIsso não remove ninguém da lista de convidados.`)) return;
+          lixo.disabled = true; status.textContent = "Apagando…";
+          rsvpApagar(r.id).then(pintar).catch(() => {
+            lixo.disabled = false;
+            status.textContent = "Não consegui apagar. A chave está certa?";
+          });
+        }}, "🗑");
+
+        lista.append(el("div", { class:"card", style:"padding:12px;margin:0" }, [
+          el("div", { style:"display:flex;gap:8px;align-items:flex-start" }, [
+            el("div", { class:"grow" }, [
+              el("div", { class:"title" }, r.nome),
+              el("div", { class:"meta" }, [
+                el("span", { class:`pill ${vai?"good":"crit"}` }, [ el("span", { class:"dot" }), vai ? "Vai" : "Não vai" ]),
+                " " + (vai ? (partes.join(" · ") || "—") : "—") + (r.telefone ? "  ·  📞 " + r.telefone : ""),
+              ]),
+              el("div", { class:"meta", style:"margin-top:2px" },
+                (rsvpQuando(r.quando) ? rsvpQuando(r.quando) + "  ·  " : "") + (jaVeio ? "já importada" : "ainda não importada")),
+              r.recado ? el("div", { class:"meta", style:"font-style:italic;margin-top:4px" }, "💌 " + r.recado) : null,
+            ]),
+            temChave ? lixo : null,
+          ]),
+          status,
+        ]));
+      });
+    }
+  }
+
+  // ===== Configuração: mexe-se uma vez =====
+  function openRsvpConfig(){
     const url = el("input", { class:"t", type:"url", inputmode:"url", value:S.rsvp.url||"",
       placeholder:"https://script.google.com/…/exec" });
     const link = el("input", { class:"t", type:"url", inputmode:"url", value:S.rsvp.link||"",
@@ -989,31 +1106,6 @@
       placeholder:"Só para apagar respostas (opcional)" });
     const status = el("p", { class:"hint", style:"margin:10px 2px 0;min-height:1.4em" }, "");
     const diz = txt => { status.textContent = txt; };
-
-    const btnBuscar = el("button", { class:"btn sm", onclick:()=>{
-      S.rsvp.url = url.value.trim(); save();
-      if (!S.rsvp.url) return diz("Cole primeiro o endereço do app da web (termina em /exec).");
-      btnBuscar.disabled = true; diz("Buscando…");
-      rsvpBuscar().then(data => {
-        btnBuscar.disabled = false;
-        if (!data || data.ok === false) return diz("O script respondeu com erro: " + ((data && data.erro) || "desconhecido") + ".");
-        const todas = data.respostas || [];
-        const novas = todas.filter(r => r.id && !S.rsvp.seen.includes(r.id));
-        if (!todas.length) return diz("Ainda não chegou nenhuma resposta. 🙂");
-        if (!novas.length) return diz(`${todas.length} resposta(s) — todas já foram importadas.`);
-        closeModal();
-        openRsvpRevisar(novas);
-      }).catch(() => {
-        btnBuscar.disabled = false;
-        diz("Não consegui falar com o script. Confira o endereço e se ele está publicado com acesso para “qualquer pessoa”.");
-      });
-    }}, "🔄 Buscar respostas");
-
-    const btnTodas = el("button", { class:"btn ghost sm", onclick:()=>{
-      S.rsvp.url = url.value.trim(); S.rsvp.key = key.value.trim(); save();
-      if (!S.rsvp.url) return diz("Cole primeiro o endereço do app da web (termina em /exec).");
-      openRsvpTodas();
-    }}, "📋 Todas as respostas");
 
     const guardaLink = () => { S.rsvp.link = link.value.trim().split("#")[0]; save(); return rsvpConvite(S.rsvp.link); };
     const btnCopiar = el("button", { class:"btn ghost sm", onclick:()=>{
@@ -1033,13 +1125,19 @@
 
     const btnZerar = el("button", { class:"btn ghost sm", onclick:()=>{
       if (!S.rsvp.seen.length) return diz("Nenhuma resposta foi importada ainda.");
-      if (!confirm("Trazer de novo todas as respostas, inclusive as já importadas?")) return;
-      S.rsvp.seen = []; save(); diz("Pronto — toque em “Buscar respostas”.");
-    }}, "↺ Rever todas");
+      if (!confirm("Marcar todas as respostas como não importadas, para revisar de novo?")) return;
+      S.rsvp.seen = []; save(); diz("Pronto — elas voltam como novas em Respostas.");
+    }}, "↺ Marcar todas como novas");
 
-    openModal("Confirmações de presença", el("div", { class:"stack" }, [
+    const salvar = () => {
+      S.rsvp.url = url.value.trim();
+      S.rsvp.key = key.value.trim();
+      guardaLink(); save();
+    };
+
+    openModal("Configurar confirmações", el("div", { class:"stack" }, [
       el("p", { class:"hint", style:"margin:0 2px 4px",
-        html:"Mande o link do convite para os convidados e traga as respostas para cá. 💌" }),
+        html:"Preenchido uma vez, fica guardado neste aparelho. 💌" }),
       field("Link do convite (confirmar.html)", link),
       el("p", { class:"hint", style:"margin:-6px 2px 0" },
         RSVP_CAMPOS.some(k => S.settings[k])
@@ -1051,96 +1149,12 @@
       field("Chave para apagar respostas", key),
       el("p", { class:"hint", style:"margin:-6px 2px 0" },
         "A chave sai da função dadosParaOApp, no editor do Apps Script. Sem ela dá para ver tudo, só não apagar."),
-      el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [ btnBuscar, btnTodas, btnZerar ]),
+      el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [
+        el("button", { class:"btn sm", onclick:()=>{ salvar(); closeModal(); openRsvp(); } }, "← Ver respostas"),
+        btnZerar,
+      ]),
       status,
-    ]), () => {
-      S.rsvp.url = url.value.trim();
-      S.rsvp.key = key.value.trim();
-      guardaLink(); save();
-    }, "Salvar");
-  }
-
-  // Apagar mexe na planilha, então exige a chave que só este app tem — a página
-  // do convite nunca a recebe. A resposta do POST nem sempre volta legível
-  // através do redirecionamento do Google, então quem diz a verdade é a lista:
-  // buscamos de novo e conferimos se a resposta sumiu mesmo.
-  function rsvpApagar(id){
-    const url = (S.rsvp.url||"").trim();
-    const corpo = JSON.stringify({ acao:"apagar", id, chave:(S.rsvp.key||"").trim() });
-    const enviar = fetch(url, { method:"POST", body:corpo, redirect:"follow",
-        headers:{ "Content-Type":"text/plain;charset=utf-8" } })
-      .catch(() => fetch(url, { method:"POST", mode:"no-cors", body:corpo }))
-      .catch(() => null);          // deu erro no envio? a lista abaixo desempata
-    return enviar.then(() => rsvpBuscar()).then(data => {
-      if ((data.respostas||[]).some(r => r.id === id)) throw new Error("nao-apagou");
-      S.rsvp.seen = S.rsvp.seen.filter(x => x !== id);
-      save();
-    });
-  }
-
-  const rsvpQuando = iso => {
-    const d = new Date(iso);
-    if (isNaN(d)) return "";
-    const p = n => String(n).padStart(2, "0");
-    return `${p(d.getDate())}/${p(d.getMonth()+1)} às ${p(d.getHours())}:${p(d.getMinutes())}`;
-  };
-
-  function openRsvpTodas(){
-    const caixa = el("div", { class:"stack" }, el("p", { class:"hint", style:"padding:8px 2px" }, "Buscando…"));
-    openModal("Respostas recebidas", caixa, ()=>{}, "Fechar", true);
-
-    const aviso = txt => { caixa.innerHTML = ""; caixa.append(el("p", { class:"hint", style:"padding:8px 2px" }, txt)); };
-
-    rsvpBuscar().then(data => {
-      if (!data || data.ok === false) return aviso("O script respondeu com erro: " + ((data && data.erro) || "desconhecido") + ".");
-      pintar(data.respostas || []);
-    }).catch(() => aviso("Não consegui falar com o script. Confira o endereço em 🔗 Confirmações."));
-
-    function pintar(todas){
-      caixa.innerHTML = "";
-      if (!todas.length){ return aviso("Ainda não chegou nenhuma resposta. 🙂"); }
-
-      const temChave = !!(S.rsvp.key||"").trim();
-      caixa.append(el("p", { class:"hint", style:"margin:0 2px" }, temChave
-        ? "Tudo que chegou pelo convite. Apagar aqui tira da planilha — o convidado que você já importou continua na lista."
-        : "Tudo que chegou pelo convite. Para poder apagar, cole a chave em 🔗 Confirmações."));
-
-      todas.slice().reverse().forEach(r => {
-        const vai = r.presenca === "sim";
-        const partes = [];
-        if (r.adultos) partes.push(`${r.adultos} adulto${r.adultos>1?"s":""}`);
-        if (r.criancas) partes.push(`${r.criancas} criança${r.criancas>1?"s":""}`);
-        const jaVeio = S.rsvp.seen.includes(r.id);
-
-        const status = el("p", { class:"hint", style:"margin:6px 2px 0" }, "");
-        const lixo = el("button", { class:"rowbtn", title:"Apagar da planilha", onclick:()=>{
-          if (!confirm(`Apagar a resposta de ${r.nome} da planilha?\n\nIsso não remove ninguém da lista de convidados.`)) return;
-          lixo.disabled = true; status.textContent = "Apagando…";
-          rsvpApagar(r.id).then(() => { card.remove(); }).catch(() => {
-            lixo.disabled = false;
-            status.textContent = "Não consegui apagar. A chave está certa?";
-          });
-        }}, "🗑");
-
-        const card = el("div", { class:"card", style:"padding:12px;margin:0" }, [
-          el("div", { style:"display:flex;gap:8px;align-items:flex-start" }, [
-            el("div", { class:"grow" }, [
-              el("div", { class:"title" }, r.nome),
-              el("div", { class:"meta" }, [
-                el("span", { class:`pill ${vai?"good":"crit"}` }, [ el("span", { class:"dot" }), vai ? "Vai" : "Não vai" ]),
-                " " + (vai ? (partes.join(" · ") || "—") : "—") + (r.telefone ? "  ·  📞 " + r.telefone : ""),
-              ]),
-              el("div", { class:"meta", style:"margin-top:2px" },
-                (rsvpQuando(r.quando) ? rsvpQuando(r.quando) + "  ·  " : "") + (jaVeio ? "já importada" : "ainda não importada")),
-              r.recado ? el("div", { class:"meta", style:"font-style:italic;margin-top:4px" }, "💌 " + r.recado) : null,
-            ]),
-            temChave ? lixo : null,
-          ]),
-          status,
-        ]);
-        caixa.append(card);
-      });
-    }
+    ]), salvar, "Salvar");
   }
 
   function openRsvpRevisar(novas){
