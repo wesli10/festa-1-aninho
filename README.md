@@ -38,9 +38,11 @@ Não precisa criar planilha nenhuma antes — o script cria a dele sozinho.
 
 **Onde ficam as respostas?** Na primeira confirmação que chegar, o script cria
 uma planilha chamada **Festa 1 Aninho — Confirmações** no seu Google Drive e
-passa a usar sempre essa. Para abrir: no editor do Apps Script, escolha a função
-`linkDaPlanilha` na caixinha do topo, clique em **▶ Executar** e o endereço
-aparece no *Registro de execução*.
+passa a usar sempre essa.
+
+Para descobrir o endereço dela — e a **chave para apagar respostas** — escolha a
+função `dadosParaOApp` na caixinha do topo do editor, clique em **▶ Executar** e
+leia o *Registro de execução*. Os dois aparecem ali.
 
 > Ao mudar o `Codigo.gs` depois, use **Implantar ▸ Gerenciar implantações ▸ ✏️ ▸
 > Versão: Nova versão**, senão o endereço continua servindo o código antigo. Se a
@@ -77,6 +79,16 @@ Na aba **Convidados**, toque em **🔗 Confirmações**, cole o link do convite 
 endereço `/exec`, e salve. Dali dá para copiar o link, mandar direto no WhatsApp
 e buscar as respostas quando quiser — cada resposta só aparece uma vez, e você
 escolhe se ela cria um convidado novo ou atualiza um que já existe.
+
+**📋 Todas as respostas** mostra tudo que já chegou, da mais nova para a mais
+velha, marcando quais você já importou. Colando também a **chave** no mesmo
+lugar, cada resposta ganha um 🗑 que a apaga da planilha — bom para teste,
+duplicata ou quem respondeu duas vezes. Apagar ali não mexe na lista de
+convidados: quem já foi importado continua lá, com ✎ e 🗑 próprios.
+
+A chave existe porque o endereço `/exec` fica visível na página do convite —
+sem ela, qualquer convidado poderia apagar a lista inteira. Enviar confirmação
+não pede chave; apagar, sim.
 
 ### Detalhes
 

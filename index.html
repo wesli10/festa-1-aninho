@@ -448,7 +448,7 @@
     expenses: [],
     notes: [],
     calc: { manualPeople:null, rates:null },
-    rsvp: { url:"", link:"", seen:[] }
+    rsvp: { url:"", link:"", key:"", seen:[] }
   };
   let S;
   try { S = Object.assign({}, DEFAULT, JSON.parse(localStorage.getItem(KEY) || "{}")); }
@@ -562,12 +562,12 @@
 
   // ===== Modal =====
   const modal = $("#modal"), modalCard = $("#modalCard");
-  function openModal(title, bodyNodes, onSave, saveLabel="Salvar"){
+  function openModal(title, bodyNodes, onSave, saveLabel="Salvar", semCancelar=false){
     modalCard.innerHTML = "";
     modalCard.append(el("h3", {}, title));
     (Array.isArray(bodyNodes)?bodyNodes:[bodyNodes]).forEach(n=>modalCard.append(n));
     const actions = el("div", { class:"modal-actions" }, [
-      el("button", { class:"btn ghost", onclick: closeModal }, "Cancelar"),
+      semCancelar ? null : el("button", { class:"btn ghost", onclick: closeModal }, "Cancelar"),
       el("button", { class:"btn", onclick:()=>{ if(onSave()!==false) closeModal(); } }, saveLabel),
     ]);
     modalCard.append(actions);
@@ -985,6 +985,8 @@
       placeholder:"https://script.google.com/…/exec" });
     const link = el("input", { class:"t", type:"url", inputmode:"url", value:S.rsvp.link||"",
       placeholder:"https://…/confirmar.html" });
+    const key = el("input", { class:"t", value:S.rsvp.key||"", autocomplete:"off",
+      placeholder:"Só para apagar respostas (opcional)" });
     const status = el("p", { class:"hint", style:"margin:10px 2px 0;min-height:1.4em" }, "");
     const diz = txt => { status.textContent = txt; };
 
@@ -1006,6 +1008,12 @@
         diz("Não consegui falar com o script. Confira o endereço e se ele está publicado com acesso para “qualquer pessoa”.");
       });
     }}, "🔄 Buscar respostas");
+
+    const btnTodas = el("button", { class:"btn ghost sm", onclick:()=>{
+      S.rsvp.url = url.value.trim(); S.rsvp.key = key.value.trim(); save();
+      if (!S.rsvp.url) return diz("Cole primeiro o endereço do app da web (termina em /exec).");
+      openRsvpTodas();
+    }}, "📋 Todas as respostas");
 
     const guardaLink = () => { S.rsvp.link = link.value.trim().split("#")[0]; save(); return rsvpConvite(S.rsvp.link); };
     const btnCopiar = el("button", { class:"btn ghost sm", onclick:()=>{
@@ -1040,9 +1048,99 @@
       el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [ btnCopiar, btnZap ]),
       el("hr", { style:"border:none;border-top:1px solid var(--line);margin:16px 0 4px" }),
       field("Endereço do app da web (Apps Script)", url),
-      el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [ btnBuscar, btnZerar ]),
+      field("Chave para apagar respostas", key),
+      el("p", { class:"hint", style:"margin:-6px 2px 0" },
+        "A chave sai da função dadosParaOApp, no editor do Apps Script. Sem ela dá para ver tudo, só não apagar."),
+      el("div", { style:"display:flex;gap:8px;flex-wrap:wrap" }, [ btnBuscar, btnTodas, btnZerar ]),
       status,
-    ]), () => { S.rsvp.url = url.value.trim(); guardaLink(); save(); }, "Salvar");
+    ]), () => {
+      S.rsvp.url = url.value.trim();
+      S.rsvp.key = key.value.trim();
+      guardaLink(); save();
+    }, "Salvar");
+  }
+
+  // Apagar mexe na planilha, então exige a chave que só este app tem — a página
+  // do convite nunca a recebe. A resposta do POST nem sempre volta legível
+  // através do redirecionamento do Google, então quem diz a verdade é a lista:
+  // buscamos de novo e conferimos se a resposta sumiu mesmo.
+  function rsvpApagar(id){
+    const url = (S.rsvp.url||"").trim();
+    const corpo = JSON.stringify({ acao:"apagar", id, chave:(S.rsvp.key||"").trim() });
+    const enviar = fetch(url, { method:"POST", body:corpo, redirect:"follow",
+        headers:{ "Content-Type":"text/plain;charset=utf-8" } })
+      .catch(() => fetch(url, { method:"POST", mode:"no-cors", body:corpo }))
+      .catch(() => null);          // deu erro no envio? a lista abaixo desempata
+    return enviar.then(() => rsvpBuscar()).then(data => {
+      if ((data.respostas||[]).some(r => r.id === id)) throw new Error("nao-apagou");
+      S.rsvp.seen = S.rsvp.seen.filter(x => x !== id);
+      save();
+    });
+  }
+
+  const rsvpQuando = iso => {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const p = n => String(n).padStart(2, "0");
+    return `${p(d.getDate())}/${p(d.getMonth()+1)} às ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  function openRsvpTodas(){
+    const caixa = el("div", { class:"stack" }, el("p", { class:"hint", style:"padding:8px 2px" }, "Buscando…"));
+    openModal("Respostas recebidas", caixa, ()=>{}, "Fechar", true);
+
+    const aviso = txt => { caixa.innerHTML = ""; caixa.append(el("p", { class:"hint", style:"padding:8px 2px" }, txt)); };
+
+    rsvpBuscar().then(data => {
+      if (!data || data.ok === false) return aviso("O script respondeu com erro: " + ((data && data.erro) || "desconhecido") + ".");
+      pintar(data.respostas || []);
+    }).catch(() => aviso("Não consegui falar com o script. Confira o endereço em 🔗 Confirmações."));
+
+    function pintar(todas){
+      caixa.innerHTML = "";
+      if (!todas.length){ return aviso("Ainda não chegou nenhuma resposta. 🙂"); }
+
+      const temChave = !!(S.rsvp.key||"").trim();
+      caixa.append(el("p", { class:"hint", style:"margin:0 2px" }, temChave
+        ? "Tudo que chegou pelo convite. Apagar aqui tira da planilha — o convidado que você já importou continua na lista."
+        : "Tudo que chegou pelo convite. Para poder apagar, cole a chave em 🔗 Confirmações."));
+
+      todas.slice().reverse().forEach(r => {
+        const vai = r.presenca === "sim";
+        const partes = [];
+        if (r.adultos) partes.push(`${r.adultos} adulto${r.adultos>1?"s":""}`);
+        if (r.criancas) partes.push(`${r.criancas} criança${r.criancas>1?"s":""}`);
+        const jaVeio = S.rsvp.seen.includes(r.id);
+
+        const status = el("p", { class:"hint", style:"margin:6px 2px 0" }, "");
+        const lixo = el("button", { class:"rowbtn", title:"Apagar da planilha", onclick:()=>{
+          if (!confirm(`Apagar a resposta de ${r.nome} da planilha?\n\nIsso não remove ninguém da lista de convidados.`)) return;
+          lixo.disabled = true; status.textContent = "Apagando…";
+          rsvpApagar(r.id).then(() => { card.remove(); }).catch(() => {
+            lixo.disabled = false;
+            status.textContent = "Não consegui apagar. A chave está certa?";
+          });
+        }}, "🗑");
+
+        const card = el("div", { class:"card", style:"padding:12px;margin:0" }, [
+          el("div", { style:"display:flex;gap:8px;align-items:flex-start" }, [
+            el("div", { class:"grow" }, [
+              el("div", { class:"title" }, r.nome),
+              el("div", { class:"meta" }, [
+                el("span", { class:`pill ${vai?"good":"crit"}` }, [ el("span", { class:"dot" }), vai ? "Vai" : "Não vai" ]),
+                " " + (vai ? (partes.join(" · ") || "—") : "—") + (r.telefone ? "  ·  📞 " + r.telefone : ""),
+              ]),
+              el("div", { class:"meta", style:"margin-top:2px" },
+                (rsvpQuando(r.quando) ? rsvpQuando(r.quando) + "  ·  " : "") + (jaVeio ? "já importada" : "ainda não importada")),
+              r.recado ? el("div", { class:"meta", style:"font-style:italic;margin-top:4px" }, "💌 " + r.recado) : null,
+            ]),
+            temChave ? lixo : null,
+          ]),
+          status,
+        ]);
+        caixa.append(card);
+      });
+    }
   }
 
   function openRsvpRevisar(novas){

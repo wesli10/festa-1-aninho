@@ -16,11 +16,12 @@
 
 // Sobe de 1 sempre que este arquivo mudar: o GET devolve o número, e assim
 // dá para saber na hora se a implantação está servindo o código novo.
-var VERSAO = 2;
+var VERSAO = 3;
 
 var SHEET_NAME = "Confirmações";
 var NOME_PLANILHA = "Festa 1 Aninho — Confirmações";
 var PROP_PLANILHA = "planilhaId";
+var PROP_CHAVE = "chaveAdmin";
 var HEADERS = ["id", "quando", "nome", "presenca", "adultos", "criancas", "telefone", "recado"];
 
 var LIMITES = { nome: 80, telefone: 30, recado: 500, pessoas: 50 };
@@ -44,6 +45,40 @@ function planilha_() {
   return nova;
 }
 
+/**
+ * Senha para apagar respostas. Sorteada na primeira vez e guardada aqui dentro.
+ * Ela vive só neste script e no app de quem organiza — nunca na página do
+ * convite. Sem isso, qualquer convidado poderia apagar a lista inteira.
+ */
+function chaveAdmin_() {
+  var props = PropertiesService.getScriptProperties();
+  var chave = props.getProperty(PROP_CHAVE);
+  if (!chave) {
+    chave = Utilities.getUuid().replace(/-/g, "").slice(0, 12);
+    props.setProperty(PROP_CHAVE, chave);
+  }
+  return chave;
+}
+
+/** Apaga uma resposta pelo id. Só com a chave certa. */
+function apagar_(id, chave) {
+  if (!id) return { ok: false, erro: "Preciso do id da resposta." };
+  if (!chave || chave !== chaveAdmin_()) return { ok: false, erro: "Chave errada." };
+
+  var sh = aba_();
+  var ultima = sh.getLastRow();
+  if (ultima < 2) return { ok: false, erro: "Não achei essa resposta." };
+
+  var ids = sh.getRange(2, 1, ultima - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]) === String(id)) {
+      sh.deleteRow(i + 2);            // +2: a linha 1 é o cabeçalho
+      return { ok: true, id: id };
+    }
+  }
+  return { ok: false, erro: "Não achei essa resposta." };
+}
+
 /** Cria (ou devolve) a aba com o cabeçalho certo. */
 function aba_() {
   var ss = planilha_();
@@ -62,13 +97,15 @@ function aba_() {
 }
 
 /**
- * Rode esta função no editor (▶ Executar) para ver o endereço da planilha.
- * Ele aparece no "Registro de execução", lá embaixo.
+ * Rode esta função no editor (▶ Executar) para ver o que o app precisa:
+ * o endereço da planilha e a chave para apagar respostas. Os dois aparecem
+ * no "Registro de execução", lá embaixo.
  */
-function linkDaPlanilha() {
-  var url = planilha_().getUrl();
-  Logger.log(url);
-  return url;
+function dadosParaOApp() {
+  var texto = "Planilha: " + planilha_().getUrl() +
+              "\nChave para apagar: " + chaveAdmin_();
+  Logger.log(texto);
+  return texto;
 }
 
 /** Resposta JSON — com suporte a JSONP quando o app pede ?callback=. */
@@ -96,6 +133,11 @@ function doPost(e) {
   var lock = LockService.getScriptLock();
   try {
     var dados = JSON.parse((e && e.postData && e.postData.contents) || "{}");
+
+    if (dados.acao === "apagar") {
+      lock.waitLock(20000);
+      return resposta_(apagar_(dados.id, dados.chave));
+    }
 
     var nome = texto_(dados.nome, LIMITES.nome);
     if (!nome) return resposta_({ ok: false, erro: "Preciso do nome." });
