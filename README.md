@@ -21,23 +21,33 @@ de aplicar. Nenhum convidado precisa instalar nada nem ter conta.
 Um link só serve para todo mundo — o convidado digita o próprio nome, e o app
 casa com quem já está na sua lista pelo nome ou pelo telefone.
 
-### 1. Criar a planilha e o script
+### 1. Criar o script
 
-1. Crie uma planilha em [sheets.new](https://sheets.new) (nome livre; o script
-   cria a aba **Confirmações** sozinho).
-2. Nela, vá em **Extensões ▸ Apps Script**.
-3. Apague o `function myFunction() {}` e cole todo o conteúdo de
+Não precisa criar planilha nenhuma antes — o script cria a dele sozinho.
+
+1. Abra [script.google.com](https://script.google.com) e clique em **Novo projeto**.
+2. Apague o `function myFunction() {}` e cole todo o conteúdo de
    [`apps-script/Codigo.gs`](apps-script/Codigo.gs). Salve (💾).
-4. Clique em **Implantar ▸ Nova implantação**, engrenagem ⚙ ▸ **App da Web**:
+3. Clique em **Implantar ▸ Nova implantação**, engrenagem ⚙ ▸ **App da Web**:
    - *Executar como*: **Eu**
    - *Quem pode acessar*: **Qualquer pessoa** ← precisa ser este, senão os
      convidados recebem erro
-5. **Implantar** e autorize (a tela de "app não verificado" é o seu próprio
+4. **Implantar** e autorize (a tela de "app não verificado" é o seu próprio
    script: **Avançado ▸ Acessar…**).
-6. Copie o **URL do app da Web** — termina em `/exec`.
+5. Copie o **URL do app da Web** — termina em `/exec`, não em `/dev`.
+
+**Onde ficam as respostas?** Na primeira confirmação que chegar, o script cria
+uma planilha chamada **Festa 1 Aninho — Confirmações** no seu Google Drive e
+passa a usar sempre essa. Para abrir: no editor do Apps Script, escolha a função
+`linkDaPlanilha` na caixinha do topo, clique em **▶ Executar** e o endereço
+aparece no *Registro de execução*.
 
 > Ao mudar o `Codigo.gs` depois, use **Implantar ▸ Gerenciar implantações ▸ ✏️ ▸
-> Versão: Nova versão**, senão o endereço continua servindo o código antigo.
+> Versão: Nova versão**, senão o endereço continua servindo o código antigo. Se a
+> lista de permissões mudar, o Google pede autorização de novo.
+
+Se preferir uma planilha que já existe, dá para colar o mesmo código nela
+(**Extensões ▸ Apps Script**) — aí o script usa essa planilha em vez de criar uma.
 
 ### 2. Preparar a página do convite
 

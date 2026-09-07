@@ -1,31 +1,70 @@
 /**
  * Festa de 1 Aninho — recebimento das confirmações de presença.
  *
- * Este script vive DENTRO de uma planilha do Google (Extensões ▸ Apps Script)
- * e é publicado como "app da web". Ele faz duas coisas:
+ * Publicado como "app da web", ele faz duas coisas:
  *
  *   POST  → grava uma confirmação nova na aba "Confirmações".
  *   GET   → devolve todas as confirmações em JSON, para o app importar.
+ *
+ * A planilha não precisa existir antes: se o script for solto (criado em
+ * script.google.com), ele cria uma no seu Drive na primeira resposta e guarda
+ * o endereço dela. Rode `linkDaPlanilha` no editor para descobrir qual é.
+ * Se o script estiver preso a uma planilha, ele usa essa mesma.
  *
  * O passo a passo de instalação está no README, seção "Confirmação de presença".
  */
 
 var SHEET_NAME = "Confirmações";
+var NOME_PLANILHA = "Festa 1 Aninho — Confirmações";
+var PROP_PLANILHA = "planilhaId";
 var HEADERS = ["id", "quando", "nome", "presenca", "adultos", "criancas", "telefone", "recado"];
 
 var LIMITES = { nome: 80, telefone: 30, recado: 500, pessoas: 50 };
 
+/** A planilha onde tudo é guardado — criando-a se ainda não existir. */
+function planilha_() {
+  try {
+    var presa = SpreadsheetApp.getActive();
+    if (presa) return presa;          // script preso a uma planilha
+  } catch (err) {}                    // script solto: segue para o Drive
+
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty(PROP_PLANILHA);
+  if (id) {
+    try { return SpreadsheetApp.openById(id); }
+    catch (err) { props.deleteProperty(PROP_PLANILHA); }   // apagada ou na lixeira
+  }
+
+  var nova = SpreadsheetApp.create(NOME_PLANILHA);
+  props.setProperty(PROP_PLANILHA, nova.getId());
+  return nova;
+}
+
 /** Cria (ou devolve) a aba com o cabeçalho certo. */
 function aba_() {
-  var ss = SpreadsheetApp.getActive();
+  var ss = planilha_();
   var sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) {
-    sh = ss.insertSheet(SHEET_NAME);
+    // planilha recém-criada já vem com uma folha vazia: aproveita essa
+    var folhas = ss.getSheets();
+    sh = (folhas.length === 1 && folhas[0].getLastRow() === 0)
+      ? folhas[0].setName(SHEET_NAME)
+      : ss.insertSheet(SHEET_NAME);
     sh.appendRow(HEADERS);
     sh.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold");
     sh.setFrozenRows(1);
   }
   return sh;
+}
+
+/**
+ * Rode esta função no editor (▶ Executar) para ver o endereço da planilha.
+ * Ele aparece no "Registro de execução", lá embaixo.
+ */
+function linkDaPlanilha() {
+  var url = planilha_().getUrl();
+  Logger.log(url);
+  return url;
 }
 
 /** Resposta JSON — com suporte a JSONP quando o app pede ?callback=. */
